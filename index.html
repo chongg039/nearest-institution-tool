@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>企业最近机构匹配</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>企业最近机构匹配</h1>
+        <p>纯静态页面；Key、企业数据、机构数据只在当前浏览器会话内处理。</p>
+      </div>
+      <div class="status-pill" id="privacyStatus">不存储数据</div>
+    </header>
+
+    <section class="panel key-panel" aria-labelledby="keyTitle">
+      <div class="panel-head">
+        <h2 id="keyTitle">高德 Key</h2>
+        <span class="quiet-label">由用户显式输入</span>
+      </div>
+      <div class="key-row">
+        <label class="field">
+          <span>Web 服务 Key</span>
+          <input id="amapKey" type="password" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="ghost-button" id="toggleKey" type="button">显示</button>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <section class="panel panel-wide" aria-labelledby="batchTitle">
+        <div class="panel-head">
+          <h2 id="batchTitle">批量匹配</h2>
+          <a class="ghost-link is-disabled" id="downloadLink" download="企业最近机构匹配结果.csv">下载结果</a>
+        </div>
+
+        <form id="batchForm" class="form-grid">
+          <label class="field">
+            <span>企业列表 CSV</span>
+            <input id="companyFile" type="file" accept=".csv,text/csv">
+          </label>
+          <label class="field">
+            <span>机构列表 CSV</span>
+            <input id="institutionFile" type="file" accept=".csv,text/csv">
+          </label>
+          <button class="primary-button" id="batchButton" type="submit">开始匹配</button>
+        </form>
+
+        <div class="progress-wrap" aria-live="polite">
+          <div class="progress-bar"><span id="progressFill"></span></div>
+          <div class="progress-text" id="batchProgress">待处理</div>
+        </div>
+
+        <div class="metrics" id="batchMetrics"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="singleTitle">
+        <div class="panel-head">
+          <h2 id="singleTitle">单家公司</h2>
+        </div>
+        <form id="queryForm" class="query-form">
+          <label class="field">
+            <span>企业地址</span>
+            <textarea id="queryAddress" rows="4" placeholder="成都市金牛区一环路北四段108号"></textarea>
+          </label>
+          <label class="field">
+            <span>机构列表 CSV</span>
+            <input id="queryInstitutionFile" type="file" accept=".csv,text/csv">
+          </label>
+          <button class="primary-button" id="queryButton" type="submit">查询最近机构</button>
+        </form>
+        <div class="result-table" id="queryResult"></div>
+      </section>
+
+      <section class="panel panel-full" aria-labelledby="resolvedTitle">
+        <div class="panel-head">
+          <h2 id="resolvedTitle">已解析数据</h2>
+          <label class="file-action">
+            <span>上传结果 CSV</span>
+            <input id="resolvedFile" type="file" accept=".csv,text/csv">
+          </label>
+        </div>
+
+        <div class="metrics" id="resolvedMetrics"></div>
+
+        <div class="rank-layout">
+          <div>
+            <h3>企业分布 Top</h3>
+            <div class="bar-list" id="topList"></div>
+          </div>
+          <div>
+            <h3>总排行</h3>
+            <div class="table-wrap">
+              <table class="rank-table">
+                <thead>
+                  <tr>
+                    <th>排名</th>
+                    <th>网点</th>
+                    <th>企业数</th>
+                    <th>占比</th>
+                    <th>平均距离</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <h3>数据预览</h3>
+        <div class="table-wrap">
+          <table class="preview-table" id="previewTable"></table>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

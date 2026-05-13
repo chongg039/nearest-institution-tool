@@ -1,0 +1,12 @@
+.DS_Store
+*.csv
+*.xls
+*.xlsx
+*.bak
+*.json
+*.env
+env
+node_modules/
+dist/
+cache/
+tmp/
