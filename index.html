@@ -4,117 +4,217 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <header class="topbar">
       <div>
         <h1>企业最近机构匹配</h1>
-        <p>纯静态页面；Key、企业数据、机构数据只在当前浏览器会话内处理。</p>
+        <p>纯静态页面；Key、上传数据、生成结果只在当前浏览器会话内处理。</p>
       </div>
-      <div class="status-pill" id="privacyStatus">不存储数据</div>
+      <div class="topbar-actions">
+        <nav class="mode-switch" aria-label="功能切换">
+          <button class="mode-button is-active" type="button" data-mode="matcher">最近机构匹配</button>
+          <button class="mode-button" type="button" data-mode="dashboard">周度指标驾驶舱</button>
+        </nav>
+        <div class="status-pill" id="privacyStatus">不存储数据</div>
+      </div>
     </header>
 
-    <section class="panel key-panel" aria-labelledby="keyTitle">
-      <div class="panel-head">
-        <h2 id="keyTitle">高德 Key</h2>
-        <span class="quiet-label">由用户显式输入</span>
-      </div>
-      <div class="key-row">
-        <label class="field">
-          <span>Web 服务 Key</span>
-          <input id="amapKey" type="password" autocomplete="off" spellcheck="false">
-        </label>
-        <button class="ghost-button" id="toggleKey" type="button">显示</button>
-      </div>
-    </section>
-
-    <main class="workspace">
-      <section class="panel panel-wide" aria-labelledby="batchTitle">
+    <section class="view is-active" id="matcherView">
+      <section class="panel key-panel" aria-labelledby="keyTitle">
         <div class="panel-head">
-          <h2 id="batchTitle">批量匹配</h2>
-          <a class="ghost-link is-disabled" id="downloadLink" download="企业最近机构匹配结果.csv">下载结果</a>
+          <h2 id="keyTitle">高德 Key</h2>
+          <span class="quiet-label">由用户显式输入</span>
         </div>
-
-        <form id="batchForm" class="form-grid">
+        <div class="key-row">
           <label class="field">
-            <span>企业列表 CSV/Excel</span>
-            <input id="companyFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span>Web 服务 Key</span>
+            <input id="amapKey" type="password" autocomplete="off" spellcheck="false">
           </label>
-          <label class="field">
-            <span>机构列表 CSV/Excel</span>
-            <input id="institutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          </label>
-          <button class="primary-button" id="batchButton" type="submit">开始匹配</button>
-        </form>
-
-        <div class="progress-wrap" aria-live="polite">
-          <div class="progress-bar"><span id="progressFill"></span></div>
-          <div class="progress-text" id="batchProgress">待处理</div>
+          <button class="ghost-button" id="toggleKey" type="button">显示</button>
         </div>
-
-        <div class="metrics" id="batchMetrics"></div>
       </section>
 
-      <section class="panel" aria-labelledby="singleTitle">
-        <div class="panel-head">
-          <h2 id="singleTitle">单家公司</h2>
-        </div>
-        <form id="queryForm" class="query-form">
-          <label class="field">
-            <span>企业地址</span>
-            <textarea id="queryAddress" rows="4" placeholder="成都市金牛区一环路北四段108号"></textarea>
-          </label>
-          <label class="field">
-            <span>机构列表 CSV/Excel</span>
-            <input id="queryInstitutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          </label>
-          <button class="primary-button" id="queryButton" type="submit">查询最近机构</button>
-        </form>
-        <div class="result-table" id="queryResult"></div>
-      </section>
-
-      <section class="panel panel-full" aria-labelledby="resolvedTitle">
-        <div class="panel-head">
-          <h2 id="resolvedTitle">已解析数据</h2>
-          <label class="file-action">
-            <span>上传结果 CSV/Excel</span>
-            <input id="resolvedFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
-          </label>
-        </div>
-
-        <div class="metrics" id="resolvedMetrics"></div>
-
-        <div class="rank-layout">
-          <div>
-            <h3>企业分布 Top</h3>
-            <div class="bar-list" id="topList"></div>
+      <main class="workspace">
+        <section class="panel panel-wide" aria-labelledby="batchTitle">
+          <div class="panel-head">
+            <h2 id="batchTitle">批量匹配</h2>
+            <a class="ghost-link is-disabled" id="downloadLink" download="企业最近机构匹配结果.csv">下载结果</a>
           </div>
-          <div>
-            <h3>总排行</h3>
-            <div class="table-wrap">
-              <table class="rank-table">
-                <thead>
-                  <tr>
-                    <th>排名</th>
-                    <th>网点</th>
-                    <th>企业数</th>
-                    <th>占比</th>
-                    <th>平均距离</th>
-                  </tr>
-                </thead>
-                <tbody id="rankingBody"></tbody>
-              </table>
+
+          <form id="batchForm" class="form-grid">
+            <label class="field">
+              <span>企业列表 CSV/Excel</span>
+              <input id="companyFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <label class="field">
+              <span>机构列表 CSV/Excel</span>
+              <input id="institutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <button class="primary-button" id="batchButton" type="submit">开始匹配</button>
+          </form>
+
+          <div class="progress-wrap" aria-live="polite">
+            <div class="progress-bar"><span id="progressFill"></span></div>
+            <div class="progress-text" id="batchProgress">待处理</div>
+          </div>
+
+          <div class="metrics" id="batchMetrics"></div>
+        </section>
+
+        <section class="panel" aria-labelledby="singleTitle">
+          <div class="panel-head">
+            <h2 id="singleTitle">单家公司</h2>
+          </div>
+          <form id="queryForm" class="query-form">
+            <label class="field">
+              <span>企业地址</span>
+              <textarea id="queryAddress" rows="4" placeholder="成都市金牛区一环路北四段108号"></textarea>
+            </label>
+            <label class="field">
+              <span>机构列表 CSV/Excel</span>
+              <input id="queryInstitutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+            <button class="primary-button" id="queryButton" type="submit">查询最近机构</button>
+          </form>
+          <div class="result-table" id="queryResult"></div>
+        </section>
+
+        <section class="panel panel-full" aria-labelledby="resolvedTitle">
+          <div class="panel-head">
+            <h2 id="resolvedTitle">已解析数据</h2>
+            <label class="file-action">
+              <span>上传结果 CSV/Excel</span>
+              <input id="resolvedFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            </label>
+          </div>
+
+          <div class="metrics" id="resolvedMetrics"></div>
+
+          <div class="rank-layout">
+            <div>
+              <h3>企业分布 Top</h3>
+              <div class="bar-list" id="topList"></div>
+            </div>
+            <div>
+              <h3>总排行</h3>
+              <div class="table-wrap">
+                <table class="rank-table">
+                  <thead>
+                    <tr>
+                      <th>排名</th>
+                      <th>网点</th>
+                      <th>企业数</th>
+                      <th>占比</th>
+                      <th>平均距离</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rankingBody"></tbody>
+                </table>
+              </div>
             </div>
           </div>
-        </div>
 
-        <h3>数据预览</h3>
-        <div class="table-wrap">
-          <table class="preview-table" id="previewTable"></table>
-        </div>
-      </section>
-    </main>
+          <h3>数据预览</h3>
+          <div class="table-wrap">
+            <table class="preview-table" id="previewTable"></table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section class="view" id="dashboardView" aria-labelledby="dashboardTitle">
+      <main class="dashboard-shell">
+        <section class="panel panel-full dashboard-control">
+          <div class="panel-head">
+            <div>
+              <h2 id="dashboardTitle">周度指标驾驶舱</h2>
+              <p class="panel-note">上传 Excel/CSV，或使用模拟数据查看综合业务渗透指标。</p>
+            </div>
+            <div class="dashboard-actions">
+              <label class="file-action">
+                <span>上传指标表</span>
+                <input id="dashboardFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+              </label>
+              <button class="ghost-button" id="sampleDashboardButton" type="button">生成模拟数据</button>
+            </div>
+          </div>
+          <div class="dashboard-toolbar">
+            <label class="field compact-field">
+              <span>周次</span>
+              <select id="weekSelect"></select>
+            </label>
+            <label class="field compact-field">
+              <span>排行指标</span>
+              <select id="rankingMetricSelect"></select>
+            </label>
+            <label class="field compact-field">
+              <span>单一机构</span>
+              <select id="institutionSelect"></select>
+            </label>
+            <div class="source-note" id="dashboardSource">未载入数据</div>
+          </div>
+        </section>
+
+        <section class="panel panel-full">
+          <div class="metrics dashboard-kpis" id="dashboardKpis"></div>
+        </section>
+
+        <section class="dashboard-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>机构表现排行</h2>
+              <span class="quiet-label" id="rankingHint">按综合业务覆盖率</span>
+            </div>
+            <div class="dashboard-rank-list" id="dashboardRankList"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>周度趋势</h2>
+              <span class="quiet-label">分维度展示机构均值</span>
+            </div>
+            <div class="trend-stack">
+              <div>
+                <h3>综合业务覆盖率</h3>
+                <div class="chart-card compact-chart" id="coverageTrendChart"></div>
+              </div>
+              <div>
+                <h3>分业务覆盖/穿透</h3>
+                <div class="chart-card compact-chart" id="businessTrendChart"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-full">
+          <div class="panel-head">
+            <h2>单一机构分析</h2>
+            <span class="quiet-label" id="institutionHint">按所选机构</span>
+          </div>
+          <div class="metrics institution-kpis" id="institutionKpis"></div>
+          <div class="institution-layout">
+            <div>
+              <h3>当前周业务结构</h3>
+              <div class="institution-bars" id="institutionBars"></div>
+            </div>
+            <div>
+              <h3>综合业务覆盖率趋势</h3>
+              <div class="chart-card compact-chart" id="institutionTrendChart"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-full">
+          <div class="panel-head">
+            <h2>业务短板热力图</h2>
+            <span class="quiet-label" id="heatmapHint">按所选周次</span>
+          </div>
+          <div class="heatmap-wrap" id="heatmap"></div>
+        </section>
+      </main>
+    </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>

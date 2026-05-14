@@ -20,12 +20,56 @@ const queryButton = document.querySelector('#queryButton');
 const queryResult = document.querySelector('#queryResult');
 const toast = document.querySelector('#toast');
 const privacyStatus = document.querySelector('#privacyStatus');
+const modeButtons = [...document.querySelectorAll('.mode-button')];
+const matcherView = document.querySelector('#matcherView');
+const dashboardView = document.querySelector('#dashboardView');
+const dashboardFileInput = document.querySelector('#dashboardFile');
+const sampleDashboardButton = document.querySelector('#sampleDashboardButton');
+const weekSelect = document.querySelector('#weekSelect');
+const rankingMetricSelect = document.querySelector('#rankingMetricSelect');
+const institutionSelect = document.querySelector('#institutionSelect');
+const dashboardSource = document.querySelector('#dashboardSource');
+const dashboardKpis = document.querySelector('#dashboardKpis');
+const dashboardRankList = document.querySelector('#dashboardRankList');
+const coverageTrendChart = document.querySelector('#coverageTrendChart');
+const businessTrendChart = document.querySelector('#businessTrendChart');
+const heatmap = document.querySelector('#heatmap');
+const rankingHint = document.querySelector('#rankingHint');
+const heatmapHint = document.querySelector('#heatmapHint');
+const institutionHint = document.querySelector('#institutionHint');
+const institutionKpis = document.querySelector('#institutionKpis');
+const institutionBars = document.querySelector('#institutionBars');
+const institutionTrendChart = document.querySelector('#institutionTrendChart');
 
 const CITY = '成都';
 const CONCURRENCY = 2;
 const amapJsonpBase = 'https://restapi.amap.com/v3';
 let outputUrl = '';
 let toastTimer = null;
+let dashboardState = {
+  rows: [],
+  weeks: [],
+  selectedWeek: '',
+  selectedMetricId: 'coverage',
+  selectedInstitution: '',
+  source: '',
+};
+
+const metricDefinitions = [
+  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合业务指标'], kind: 'rate', target: 0.65 },
+  { id: 'bill', label: '电票业务穿透率', aliases: ['电票业务穿透率', '电票业务渗透率'], kind: 'rate', target: 0.55 },
+  { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率'], kind: 'rate', target: 0.55 },
+  { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率'], kind: 'rate', target: 0.5 },
+  { id: 'stateBusiness', label: '国业业务穿透率', aliases: ['国业业务穿透率', '国业业务渗透率'], kind: 'rate', target: 0.45 },
+  { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比'], kind: 'rate', target: 0.35 },
+  { id: 'settlement', label: '对公结算业务', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率'], kind: 'rate', target: 0.55 },
+  { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
+  { id: 'contribution', label: '综合业务备款贡献度', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度'], kind: 'rate', target: 0.45 },
+  { id: 'interest', label: '综合付息率', aliases: ['综合付息率'], kind: 'inverseRate', target: 0.018 },
+  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群'], kind: 'count', target: 50 },
+];
+
+const businessTrendMetricIds = ['bill', 'acquiring', 'payroll', 'stateBusiness'];
 
 function showToast(message, type = 'info') {
   toast.textContent = message;
@@ -656,10 +700,539 @@ function renderResolvedAnalysis(analysis) {
   previewTable.innerHTML = `<thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody>`;
 }
 
+function setMode(mode) {
+  const isDashboard = mode === 'dashboard';
+  matcherView.classList.toggle('is-active', !isDashboard);
+  dashboardView.classList.toggle('is-active', isDashboard);
+  modeButtons.forEach((button) => {
+    button.classList.toggle('is-active', button.dataset.mode === mode);
+  });
+}
+
+function normalizeHeaderName(value) {
+  return String(value || '').replace(/\s+/g, '').trim();
+}
+
+function findHeaderIndex(header, names) {
+  const normalized = header.map(normalizeHeaderName);
+  for (const name of names) {
+    const index = normalized.indexOf(normalizeHeaderName(name));
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+function parseDashboardNumber(value, metric) {
+  const raw = String(value ?? '').trim();
+  if (!raw || raw === '-' || raw === '--') return null;
+  const isPercent = raw.includes('%');
+  const normalized = raw.replace(/,/g, '').replace(/%/g, '').replace(/[^\d.-]/g, '');
+  if (!normalized) return null;
+  let number = Number(normalized);
+  if (!Number.isFinite(number)) return null;
+  if (metric.kind !== 'count' && (isPercent || number > 1)) number /= 100;
+  return number;
+}
+
+function formatDashboardValue(value, metric) {
+  if (value == null || Number.isNaN(Number(value))) return '-';
+  if (metric.kind === 'count') return `${Math.round(value)}`;
+  if (metric.id === 'interest') return `${(value * 100).toFixed(2)}%`;
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatDelta(value, metric) {
+  if (value == null || Number.isNaN(Number(value))) return '-';
+  if (metric.kind === 'count') return `${value >= 0 ? '+' : ''}${Math.round(value)}`;
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}pct`;
+}
+
+function valueForScore(value, metric) {
+  if (value == null) return null;
+  if (metric.kind === 'inverseRate') return Math.max(0, 1 - (value / Math.max(metric.target * 2, 0.01)));
+  if (metric.kind === 'count') return Math.min(1, value / metric.target);
+  return Math.max(0, Math.min(1, value));
+}
+
+function average(values) {
+  const valid = values.filter((value) => value != null && Number.isFinite(value));
+  if (!valid.length) return null;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function getWeekRank(week) {
+  const text = String(week || '');
+  const number = text.match(/\d+/g)?.map(Number).pop();
+  return Number.isFinite(number) ? number : 0;
+}
+
+function sortWeeks(weeks) {
+  return [...weeks].sort((a, b) => {
+    const rank = getWeekRank(a) - getWeekRank(b);
+    return rank || String(a).localeCompare(String(b), 'zh-CN');
+  });
+}
+
+function parseDashboardCsv(csvText, source = '上传文件') {
+  const rows = parseCsv(csvText);
+  if (rows.length < 2) throw new Error('指标文件没有数据行');
+  const header = rows[0];
+  const institutionIndex = findHeaderIndex(header, ['机构', '机构名称', '网点', '支行']);
+  if (institutionIndex === -1) throw new Error('指标文件缺少 机构 列');
+  const weekIndex = findHeaderIndex(header, ['周次', '周', '统计周', '日期']);
+  const metricColumns = metricDefinitions.map((metric) => ({
+    metric,
+    index: findHeaderIndex(header, metric.aliases),
+  })).filter((item) => item.index !== -1);
+  if (!metricColumns.length) throw new Error('指标文件没有可识别的指标列');
+
+  const parsedRows = rows.slice(1).map((row) => {
+    const institution = String(row[institutionIndex] || '').trim();
+    if (!institution) return null;
+    const metrics = {};
+    for (const { metric, index } of metricColumns) {
+      const value = parseDashboardNumber(row[index], metric);
+      if (value != null) metrics[metric.id] = value;
+    }
+    return {
+      week: weekIndex >= 0 ? String(row[weekIndex] || '').trim() || '本周' : '本周',
+      institution,
+      metrics,
+    };
+  }).filter(Boolean);
+
+  if (!parsedRows.length) throw new Error('指标文件没有有效机构数据');
+  return {
+    rows: parsedRows,
+    weeks: sortWeeks([...new Set(parsedRows.map((row) => row.week))]),
+    source,
+  };
+}
+
+function generateDashboardSample() {
+  const institutions = ['机构A', '机构B', '机构C', '机构D', '机构E', '机构F', '机构G', '机构H', '机构I', '机构J'];
+  const weeks = Array.from({ length: 8 }, (_, index) => `第${index + 1}周`);
+  const rows = [];
+  weeks.forEach((week, weekIndex) => {
+    institutions.forEach((institution, institutionIndex) => {
+      const base = 0.38 + institutionIndex * 0.035 + weekIndex * 0.018;
+      const wave = Math.sin((institutionIndex + 1) * (weekIndex + 2)) * 0.025;
+      rows.push({
+        week,
+        institution,
+        metrics: {
+          coverage: Math.min(0.92, base + wave),
+          bill: Math.min(0.88, base - 0.06 + Math.cos(institutionIndex + weekIndex) * 0.025),
+          acquiring: Math.min(0.9, base - 0.02 + Math.sin(weekIndex / 2) * 0.03),
+          payroll: Math.min(0.86, base - 0.08 + Math.cos(institutionIndex / 2) * 0.026),
+          stateBusiness: Math.min(0.78, base - 0.12 + Math.sin(institutionIndex) * 0.024),
+          highPenetration: Math.min(0.72, base - 0.18 + Math.cos(weekIndex) * 0.018),
+          settlement: Math.min(0.9, base - 0.03 + Math.sin(institutionIndex + 1) * 0.02),
+          loan: Math.min(0.76, base - 0.14 + Math.cos(weekIndex + institutionIndex) * 0.018),
+          contribution: Math.min(0.82, base - 0.1 + Math.sin(weekIndex + institutionIndex / 2) * 0.022),
+          interest: Math.max(0.006, 0.022 - weekIndex * 0.0008 + institutionIndex * 0.0003),
+          keyCustomers: Math.round(34 + institutionIndex * 4 + weekIndex * 3 + Math.sin(institutionIndex + weekIndex) * 4),
+        },
+      });
+    });
+  });
+  return { rows, weeks, source: '模拟数据：8周 / 10机构' };
+}
+
+function availableMetrics(rows) {
+  return metricDefinitions.filter((metric) => rows.some((row) => row.metrics[metric.id] != null));
+}
+
+function rowsForWeek(week) {
+  return dashboardState.rows.filter((row) => row.week === week);
+}
+
+function previousWeekOf(week) {
+  const index = dashboardState.weeks.indexOf(week);
+  return index > 0 ? dashboardState.weeks[index - 1] : '';
+}
+
+function metricAverageForWeek(week, metricId) {
+  return average(rowsForWeek(week).map((row) => row.metrics[metricId]));
+}
+
+function institutionMetricForWeek(week, institution, metricId) {
+  return rowsForWeek(week).find((row) => row.institution === institution)?.metrics[metricId] ?? null;
+}
+
+function institutionNames() {
+  return [...new Set(dashboardState.rows.map((row) => row.institution))]
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+function metricById(metricId) {
+  return metricDefinitions.find((metric) => metric.id === metricId);
+}
+
+function renderDashboardControls() {
+  const metrics = availableMetrics(dashboardState.rows);
+  const institutions = institutionNames();
+  weekSelect.innerHTML = dashboardState.weeks.map((week) => (
+    `<option value="${escapeHtml(week)}"${week === dashboardState.selectedWeek ? ' selected' : ''}>${escapeHtml(week)}</option>`
+  )).join('');
+  rankingMetricSelect.innerHTML = metrics.map((metric) => (
+    `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
+  )).join('');
+  institutionSelect.innerHTML = institutions.map((institution) => (
+    `<option value="${escapeHtml(institution)}"${institution === dashboardState.selectedInstitution ? ' selected' : ''}>${escapeHtml(institution)}</option>`
+  )).join('');
+  weekSelect.disabled = dashboardState.weeks.length <= 1;
+  rankingMetricSelect.disabled = metrics.length <= 1;
+  institutionSelect.disabled = institutions.length <= 1;
+  dashboardSource.textContent = dashboardState.source || '未载入数据';
+}
+
+function ensureDashboardSelections() {
+  const weekRows = rowsForWeek(dashboardState.selectedWeek);
+  if (!weekRows.some((row) => row.institution === dashboardState.selectedInstitution)) {
+    dashboardState.selectedInstitution = weekRows[0]?.institution || institutionNames()[0] || '';
+  }
+}
+
+function renderDashboardKpis() {
+  const week = dashboardState.selectedWeek;
+  const previousWeek = previousWeekOf(week);
+  const latestRows = rowsForWeek(week);
+  const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
+  const coverage = metricAverageForWeek(week, 'coverage');
+  const previousCoverage = previousWeek ? metricAverageForWeek(previousWeek, 'coverage') : null;
+  const coverageDelta = coverage != null && previousCoverage != null ? coverage - previousCoverage : null;
+  const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
+  const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
+  const metricWeakness = availableMetrics(latestRows).map((metric) => ({
+    metric,
+    score: average(latestRows.map((row) => valueForScore(row.metrics[metric.id], metric))),
+  })).filter((item) => item.score != null).sort((a, b) => a.score - b.score)[0];
+  const topInstitution = latestRows
+    .map((row) => ({ institution: row.institution, value: row.metrics.coverage }))
+    .filter((item) => item.value != null)
+    .sort((a, b) => b.value - a.value)[0];
+
+  dashboardKpis.innerHTML = [
+    [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
+    [formatDelta(coverageDelta, coverageMetric), previousWeek ? `较${previousWeek}` : '暂无环比'],
+    [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
+    [metricWeakness?.metric.label || '-', '最低短板指标'],
+    [topInstitution ? `${topInstitution.institution} ${formatDashboardValue(topInstitution.value, coverageMetric)}` : '-', '覆盖率最高机构'],
+  ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+}
+
+function renderDashboardRanking() {
+  const metric = metricById(dashboardState.selectedMetricId)
+    || metricDefinitions[0];
+  const keyCustomersMetric = metricById('keyCustomers');
+  const week = dashboardState.selectedWeek;
+  const previousWeek = previousWeekOf(week);
+  const rows = rowsForWeek(week).map((row) => {
+    const value = row.metrics[metric.id];
+    const previous = previousWeek ? institutionMetricForWeek(previousWeek, row.institution, metric.id) : null;
+    return {
+      institution: row.institution,
+      value,
+      keyCustomers: row.metrics.keyCustomers ?? null,
+      delta: value != null && previous != null ? value - previous : null,
+    };
+  }).filter((row) => row.value != null).sort((a, b) => {
+    if (metric.kind === 'inverseRate') return a.value - b.value || a.institution.localeCompare(b.institution, 'zh-CN');
+    return b.value - a.value || a.institution.localeCompare(b.institution, 'zh-CN');
+  });
+
+  rankingHint.textContent = `按${metric.label}`;
+  if (!rows.length) {
+    dashboardRankList.innerHTML = '<div class="empty-state">暂无排行数据</div>';
+    return;
+  }
+  const maxScore = Math.max(...rows.map((row) => valueForScore(row.value, metric) || 0), 0.01);
+  const topRows = rows.slice(0, 5);
+  const bottomRows = rows.length > 5 ? rows.slice(-5) : [];
+  const rankRowHtml = (row, index, markerText, markerClass = '') => {
+    const score = valueForScore(row.value, metric) || 0;
+    const width = Math.max(3, Math.round((score / maxScore) * 100));
+    return `
+      <div class="dashboard-rank-row">
+        <span class="rank-marker ${markerClass}">${escapeHtml(markerText)}</span>
+        <span class="rank-title" title="${escapeHtml(row.institution)}">${escapeHtml(row.institution)}</span>
+        <span class="rank-track"><span style="width:${width}%"></span></span>
+        <strong>${escapeHtml(formatDashboardValue(row.value, metric))}</strong>
+        <span class="rank-key-customers">${escapeHtml(formatDashboardValue(row.keyCustomers, keyCustomersMetric))}</span>
+        <em>${escapeHtml(formatDelta(row.delta, metric))}</em>
+      </div>
+    `;
+  };
+  const renderSection = (title, sectionRows, offset, markerClass) => {
+    if (!sectionRows.length) return '';
+    return `
+      <div class="rank-section-title">${escapeHtml(title)}</div>
+      ${sectionRows.map((row, index) => rankRowHtml(row, offset + index + 1, `${offset + index + 1}`, markerClass)).join('')}
+    `;
+  };
+  dashboardRankList.innerHTML = [
+    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>环比</span></div>',
+    renderSection('前五家', topRows, 0, 'is-top'),
+    renderSection('后五家', bottomRows, Math.max(0, rows.length - bottomRows.length), 'is-bottom'),
+  ].join('');
+}
+
+function linePoints(values, width, height, padding, min, max) {
+  const range = Math.max(max - min, 0.01);
+  return values.map((item, index) => {
+    if (item.value == null) return null;
+    const x = padding + (values.length === 1 ? 0 : (index / (values.length - 1)) * (width - padding * 2));
+    const y = height - padding - ((item.value - min) / range) * (height - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).filter(Boolean).join(' ');
+}
+
+function renderLineChart(container, series, emptyText, ariaLabel) {
+  const validSeries = series.filter((item) => item.values.some((point) => point.value != null));
+  if (!validSeries.length) {
+    container.innerHTML = `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
+    return;
+  }
+  const width = 680;
+  const height = 220;
+  const padding = 34;
+  const allValues = validSeries.flatMap((item) => item.values.map((point) => point.value)).filter((value) => value != null);
+  const max = Math.max(...allValues);
+  const min = Math.min(...allValues);
+  const domainPadding = Math.max((max - min) * 0.12, 0.01);
+  const domainMin = Math.max(0, min - domainPadding);
+  const domainMax = max + domainPadding;
+  const colors = ['#0f766e', '#2563eb', '#b45309', '#7c3aed'];
+  const lines = validSeries.map((item, index) => {
+    const points = linePoints(item.values, width, height, padding, domainMin, domainMax);
+    return points ? `<polyline points="${points}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>` : '';
+  }).join('');
+  const xLabels = dashboardState.weeks.map((week, index) => {
+    const x = padding + (dashboardState.weeks.length === 1 ? 0 : (index / (dashboardState.weeks.length - 1)) * (width - padding * 2));
+    return `<text x="${x}" y="${height - 8}" text-anchor="middle">${escapeHtml(week)}</text>`;
+  }).join('');
+  const legend = validSeries.map((item, index) => (
+    `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.label)}</span>`
+  )).join('');
+  container.innerHTML = `
+    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(ariaLabel)}">
+      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" class="axis-line"></line>
+      <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" class="axis-line"></line>
+      ${lines}
+      ${xLabels}
+    </svg>
+    <div class="chart-legend">${legend}</div>
+  `;
+}
+
+function renderTrendCharts() {
+  const coverageMetric = metricById('coverage');
+  renderLineChart(coverageTrendChart, [{
+    label: coverageMetric.label,
+    values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, 'coverage') })),
+  }], '暂无综合覆盖率趋势数据', '综合业务覆盖率趋势');
+
+  const businessSeries = businessTrendMetricIds
+    .map((id) => metricById(id))
+    .filter((metric) => metric && dashboardState.rows.some((row) => row.metrics[metric.id] != null))
+    .map((metric) => ({
+      label: metric.label,
+      values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, metric.id) })),
+    }));
+  renderLineChart(businessTrendChart, businessSeries, '暂无分业务趋势数据', '分业务覆盖和穿透趋势');
+}
+
+function renderHeatmap() {
+  const week = dashboardState.selectedWeek;
+  const metrics = availableMetrics(rowsForWeek(week));
+  const rows = rowsForWeek(week).sort((a, b) => {
+    const aScore = average(metrics.map((metric) => valueForScore(a.metrics[metric.id], metric)));
+    const bScore = average(metrics.map((metric) => valueForScore(b.metrics[metric.id], metric)));
+    return (aScore ?? 0) - (bScore ?? 0);
+  });
+  heatmapHint.textContent = `${week}，低分优先`;
+  if (!rows.length || !metrics.length) {
+    heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
+    return;
+  }
+  const header = metrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('');
+  const body = rows.map((row) => {
+    const cells = metrics.map((metric) => {
+      const value = row.metrics[metric.id];
+      const score = valueForScore(value, metric);
+      const level = score == null ? 0 : Math.round(score * 100);
+      return `<td><span class="heat-cell" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, metric))}</span></td>`;
+    }).join('');
+    return `<tr><th>${escapeHtml(row.institution)}</th>${cells}</tr>`;
+  }).join('');
+  heatmap.innerHTML = `
+    <table class="heatmap-table">
+      <thead><tr><th>机构</th>${header}</tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+}
+
+function renderSingleInstitution() {
+  const week = dashboardState.selectedWeek;
+  const institution = dashboardState.selectedInstitution;
+  const row = rowsForWeek(week).find((item) => item.institution === institution);
+  const previousWeek = previousWeekOf(week);
+  const coverageMetric = metricById('coverage');
+  const keyCustomersMetric = metricById('keyCustomers');
+  institutionHint.textContent = institution ? `${institution} / ${week}` : '按所选机构';
+
+  if (!row) {
+    institutionKpis.innerHTML = [
+      ['-', '综合业务覆盖率'],
+      ['-', '覆盖率环比'],
+      ['-', '重点客群数'],
+      ['-', '最低短板指标'],
+    ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    institutionBars.innerHTML = '<div class="empty-state">暂无机构数据</div>';
+    institutionTrendChart.innerHTML = '<div class="empty-state">暂无机构趋势数据</div>';
+    return;
+  }
+
+  const coverage = row.metrics.coverage ?? null;
+  const previousCoverage = previousWeek ? institutionMetricForWeek(previousWeek, institution, 'coverage') : null;
+  const coverageDelta = coverage != null && previousCoverage != null ? coverage - previousCoverage : null;
+  const weakness = availableMetrics([row]).map((metric) => ({
+    metric,
+    score: valueForScore(row.metrics[metric.id], metric),
+  })).filter((item) => item.score != null).sort((a, b) => a.score - b.score)[0];
+
+  institutionKpis.innerHTML = [
+    [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
+    [formatDelta(coverageDelta, coverageMetric), previousWeek ? `较${previousWeek}` : '暂无环比'],
+    [formatDashboardValue(row.metrics.keyCustomers, keyCustomersMetric), '重点客群数'],
+    [weakness?.metric.label || '-', '最低短板指标'],
+  ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+
+  const barMetrics = metricDefinitions
+    .filter((metric) => metric.id !== 'keyCustomers' && row.metrics[metric.id] != null)
+    .map((metric) => ({
+      metric,
+      value: row.metrics[metric.id],
+      score: valueForScore(row.metrics[metric.id], metric) ?? 0,
+    }));
+  institutionBars.innerHTML = barMetrics.map((item) => {
+    const width = Math.max(3, Math.round(item.score * 100));
+    return `
+      <div class="institution-bar-row">
+        <span>${escapeHtml(item.metric.label)}</span>
+        <div class="rank-track"><span style="width:${width}%"></span></div>
+        <strong>${escapeHtml(formatDashboardValue(item.value, item.metric))}</strong>
+      </div>
+    `;
+  }).join('') || '<div class="empty-state">暂无业务指标</div>';
+
+  renderLineChart(institutionTrendChart, [{
+    label: `${institution} 综合业务覆盖率`,
+    values: dashboardState.weeks.map((itemWeek) => ({
+      week: itemWeek,
+      value: institutionMetricForWeek(itemWeek, institution, 'coverage'),
+    })),
+  }], '暂无机构趋势数据', `${institution} 综合业务覆盖率趋势`);
+}
+
+function renderDashboard() {
+  if (!dashboardState.rows.length) {
+    dashboardKpis.innerHTML = [
+      ['-', '综合业务覆盖率'],
+      ['-', '暂无环比'],
+      ['-', '达标机构数'],
+      ['-', '最低短板指标'],
+    ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    dashboardRankList.innerHTML = '<div class="empty-state">上传 Excel/CSV 或生成模拟数据</div>';
+    coverageTrendChart.innerHTML = '<div class="empty-state">暂无综合覆盖率趋势数据</div>';
+    businessTrendChart.innerHTML = '<div class="empty-state">暂无分业务趋势数据</div>';
+    institutionKpis.innerHTML = [
+      ['-', '综合业务覆盖率'],
+      ['-', '覆盖率环比'],
+      ['-', '重点客群数'],
+      ['-', '最低短板指标'],
+    ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    institutionBars.innerHTML = '<div class="empty-state">暂无机构数据</div>';
+    institutionTrendChart.innerHTML = '<div class="empty-state">暂无机构趋势数据</div>';
+    heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
+    dashboardSource.textContent = '未载入数据';
+    weekSelect.innerHTML = '<option>暂无数据</option>';
+    rankingMetricSelect.innerHTML = '<option>暂无指标</option>';
+    institutionSelect.innerHTML = '<option>暂无机构</option>';
+    weekSelect.disabled = true;
+    rankingMetricSelect.disabled = true;
+    institutionSelect.disabled = true;
+    return;
+  }
+  ensureDashboardSelections();
+  renderDashboardControls();
+  renderDashboardKpis();
+  renderDashboardRanking();
+  renderTrendCharts();
+  renderSingleInstitution();
+  renderHeatmap();
+}
+
+function loadDashboardData(dataset) {
+  const metrics = availableMetrics(dataset.rows);
+  const institutions = [...new Set(dataset.rows.map((row) => row.institution))]
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  dashboardState = {
+    rows: dataset.rows,
+    weeks: dataset.weeks,
+    selectedWeek: dataset.weeks[dataset.weeks.length - 1] || '',
+    selectedMetricId: metrics.some((metric) => metric.id === dashboardState.selectedMetricId)
+      ? dashboardState.selectedMetricId
+      : metrics[0]?.id || 'coverage',
+    selectedInstitution: institutions.includes(dashboardState.selectedInstitution)
+      ? dashboardState.selectedInstitution
+      : institutions[0] || '',
+    source: dataset.source,
+  };
+  renderDashboard();
+}
+
 toggleKeyButton.addEventListener('click', () => {
   const visible = amapKeyInput.type === 'text';
   amapKeyInput.type = visible ? 'password' : 'text';
   toggleKeyButton.textContent = visible ? '显示' : '隐藏';
+});
+
+modeButtons.forEach((button) => {
+  button.addEventListener('click', () => setMode(button.dataset.mode));
+});
+
+dashboardFileInput.addEventListener('change', async () => {
+  try {
+    const csvText = await readSelectedTableFile(dashboardFileInput);
+    if (!csvText) return;
+    loadDashboardData(parseDashboardCsv(csvText, `上传文件：${dashboardFileInput.files?.[0]?.name || ''}`));
+    showToast('指标数据已载入');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
+
+sampleDashboardButton.addEventListener('click', () => {
+  loadDashboardData(generateDashboardSample());
+  showToast('已生成模拟指标数据');
+});
+
+weekSelect.addEventListener('change', () => {
+  dashboardState.selectedWeek = weekSelect.value;
+  renderDashboard();
+});
+
+rankingMetricSelect.addEventListener('change', () => {
+  dashboardState.selectedMetricId = rankingMetricSelect.value;
+  renderDashboard();
+});
+
+institutionSelect.addEventListener('change', () => {
+  dashboardState.selectedInstitution = institutionSelect.value;
+  renderDashboard();
 });
 
 resolvedFileInput.addEventListener('change', async () => {
@@ -738,6 +1311,7 @@ queryForm.addEventListener('submit', async (event) => {
 
 setMetrics();
 resetResolvedView();
+renderDashboard();
 
 if (window.desktopRuntime?.isDesktop) {
   privacyStatus.textContent = `桌面端 ${window.desktopRuntime.platform}`;
