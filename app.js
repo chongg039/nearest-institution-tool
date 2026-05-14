@@ -148,10 +148,25 @@ function ensureColumn(header, name, preferredAfterIndex) {
   return index;
 }
 
-async function readSelectedFile(input) {
+function isExcelFile(fileName) {
+  return /\.(xls|xlsx)$/i.test(fileName);
+}
+
+function isCsvFile(fileName, fileType) {
+  return /\.csv$/i.test(fileName) || fileType === 'text/csv';
+}
+
+async function readSelectedTableFile(input) {
   const file = input.files?.[0];
   if (!file) return '';
-  return file.text();
+  if (isCsvFile(file.name, file.type)) return file.text();
+  if (!isExcelFile(file.name)) throw new Error('仅支持 CSV、XLS、XLSX 文件');
+  if (!window.XLSX) throw new Error('Excel 解析组件加载失败，请刷新页面后重试');
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  const firstSheetName = workbook.SheetNames[0];
+  if (!firstSheetName) throw new Error('Excel 文件没有可读取的工作表');
+  const sheet = workbook.Sheets[firstSheetName];
+  return window.XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
 }
 
 function jsonp(path, params, timeoutMs = 15000) {
@@ -568,11 +583,11 @@ function resetResolvedView() {
 
 function analyzeResolvedCsv(csvText) {
   const rows = parseCsv(csvText);
-  if (rows.length < 2) throw new Error('CSV 没有数据行');
+  if (rows.length < 2) throw new Error('文件没有数据行');
   const header = rows[0];
   const branchIndex = header.indexOf('最近机构网点');
   const distanceIndex = header.indexOf('企业到网点直线距离(米)');
-  if (branchIndex === -1) throw new Error('CSV 缺少 最近机构网点 列');
+  if (branchIndex === -1) throw new Error('文件缺少 最近机构网点 列');
 
   const groups = new Map();
   let distanceCount = 0;
@@ -649,7 +664,7 @@ toggleKeyButton.addEventListener('click', () => {
 
 resolvedFileInput.addEventListener('change', async () => {
   try {
-    const csvText = await readSelectedFile(resolvedFileInput);
+    const csvText = await readSelectedTableFile(resolvedFileInput);
     if (!csvText) return;
     renderResolvedAnalysis(analyzeResolvedCsv(csvText));
     showToast('已解析数据已载入');
@@ -662,10 +677,10 @@ batchForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const key = requireAmapKey();
-    const companyCsv = await readSelectedFile(companyFileInput);
-    const institutionCsv = await readSelectedFile(institutionFileInput);
-    if (!companyCsv) throw new Error('请选择企业列表 CSV');
-    if (!institutionCsv) throw new Error('请选择机构列表 CSV');
+    const companyCsv = await readSelectedTableFile(companyFileInput);
+    const institutionCsv = await readSelectedTableFile(institutionFileInput);
+    if (!companyCsv) throw new Error('请选择企业列表 CSV/Excel');
+    if (!institutionCsv) throw new Error('请选择机构列表 CSV/Excel');
     batchButton.disabled = true;
     downloadLink.classList.add('is-disabled');
     setProgress({ completed: 0, total: 1, message: '开始处理' });
@@ -696,9 +711,9 @@ queryForm.addEventListener('submit', async (event) => {
   try {
     const key = requireAmapKey();
     const address = queryAddress.value.trim();
-    const institutionCsv = await readSelectedFile(queryInstitutionFileInput);
+    const institutionCsv = await readSelectedTableFile(queryInstitutionFileInput);
     if (!address) throw new Error('请输入企业地址');
-    if (!institutionCsv) throw new Error('请选择机构列表 CSV');
+    if (!institutionCsv) throw new Error('请选择机构列表 CSV/Excel');
     queryButton.disabled = true;
     queryResult.innerHTML = '<div class="result-row"><span>状态</span><strong>查询中</strong></div>';
     const result = await queryNearest({ key, address, institutionCsv });

@@ -29,7 +29,9 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir _site
+          mkdir _site/vendor
           cp index.html app.js styles.css .nojekyll _site/
+          cp vendor/xlsx.full.min.js _site/vendor/
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

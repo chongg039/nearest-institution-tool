@@ -38,12 +38,12 @@
 
         <form id="batchForm" class="form-grid">
           <label class="field">
-            <span>企业列表 CSV</span>
-            <input id="companyFile" type="file" accept=".csv,text/csv">
+            <span>企业列表 CSV/Excel</span>
+            <input id="companyFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
           </label>
           <label class="field">
-            <span>机构列表 CSV</span>
-            <input id="institutionFile" type="file" accept=".csv,text/csv">
+            <span>机构列表 CSV/Excel</span>
+            <input id="institutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
           </label>
           <button class="primary-button" id="batchButton" type="submit">开始匹配</button>
         </form>
@@ -66,8 +66,8 @@
             <textarea id="queryAddress" rows="4" placeholder="成都市金牛区一环路北四段108号"></textarea>
           </label>
           <label class="field">
-            <span>机构列表 CSV</span>
-            <input id="queryInstitutionFile" type="file" accept=".csv,text/csv">
+            <span>机构列表 CSV/Excel</span>
+            <input id="queryInstitutionFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
           </label>
           <button class="primary-button" id="queryButton" type="submit">查询最近机构</button>
         </form>
@@ -78,8 +78,8 @@
         <div class="panel-head">
           <h2 id="resolvedTitle">已解析数据</h2>
           <label class="file-action">
-            <span>上传结果 CSV</span>
-            <input id="resolvedFile" type="file" accept=".csv,text/csv">
+            <span>上传结果 CSV/Excel</span>
+            <input id="resolvedFile" type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
           </label>
         </div>
 
@@ -117,6 +117,7 @@
     </main>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="vendor/xlsx.full.min.js"></script>
     <script src="app.js" type="module"></script>
   </body>
 </html>
