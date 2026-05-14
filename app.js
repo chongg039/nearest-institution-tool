@@ -31,8 +31,7 @@ const institutionSelect = document.querySelector('#institutionSelect');
 const dashboardSource = document.querySelector('#dashboardSource');
 const dashboardKpis = document.querySelector('#dashboardKpis');
 const dashboardRankList = document.querySelector('#dashboardRankList');
-const coverageTrendChart = document.querySelector('#coverageTrendChart');
-const businessTrendChart = document.querySelector('#businessTrendChart');
+const combinedTrendChart = document.querySelector('#combinedTrendChart');
 const heatmap = document.querySelector('#heatmap');
 const rankingHint = document.querySelector('#rankingHint');
 const heatmapHint = document.querySelector('#heatmapHint');
@@ -70,7 +69,7 @@ const metricDefinitions = [
   { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群'], kind: 'count', target: 50 },
 ];
 
-const businessTrendMetricIds = ['bill', 'acquiring', 'payroll', 'stateBusiness'];
+const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
 
 function showToast(message, type = 'info') {
   toast.textContent = message;
@@ -894,26 +893,35 @@ function renderDashboardKpis() {
   const baseWeek = yearStartWeek();
   const latestRows = rowsForWeek(week);
   const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
+  const keyCustomersMetric = metricById('keyCustomers');
+  const highPenetrationMetric = metricById('highPenetration');
   const coverage = metricAverageForWeek(week, 'coverage');
   const baseCoverage = baseWeek ? metricAverageForWeek(baseWeek, 'coverage') : null;
   const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
+  const keyCustomers = latestRows
+    .map((row) => row.metrics.keyCustomers)
+    .filter((value) => value != null)
+    .reduce((sum, value) => sum + value, 0);
+  const baseKeyCustomers = baseWeek ? rowsForWeek(baseWeek)
+    .map((row) => row.metrics.keyCustomers)
+    .filter((value) => value != null)
+    .reduce((sum, value) => sum + value, 0) : null;
+  const hasKeyCustomers = latestRows.some((row) => row.metrics.keyCustomers != null);
+  const keyCustomersDelta = hasKeyCustomers && baseKeyCustomers != null ? keyCustomers - baseKeyCustomers : null;
+  const highPenetration = metricAverageForWeek(week, 'highPenetration');
   const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
   const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
   const metricWeakness = availableMetrics(latestRows).map((metric) => ({
     metric,
     score: average(latestRows.map((row) => valueForScore(row.metrics[metric.id], metric))),
   })).filter((item) => item.score != null).sort((a, b) => a.score - b.score)[0];
-  const topInstitution = latestRows
-    .map((row) => ({ institution: row.institution, value: row.metrics.coverage }))
-    .filter((item) => item.value != null)
-    .sort((a, b) => b.value - a.value)[0];
 
   dashboardKpis.innerHTML = [
-    [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
-    [formatDelta(coverageDelta, coverageMetric), baseWeek ? '较年初新增' : '暂无基准'],
+    [hasKeyCustomers ? `${formatDashboardValue(keyCustomers, keyCustomersMetric)} / ${formatDelta(keyCustomersDelta, keyCustomersMetric)}` : '-', '重点客群数量 / 较年初新增数'],
+    [`${formatDashboardValue(coverage, coverageMetric)} / ${formatDelta(coverageDelta, coverageMetric)}`, '综合业务覆盖率 / 较年初新增'],
     [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
+    [formatDashboardValue(highPenetration, highPenetrationMetric), '高渗透客户占比'],
     [metricWeakness?.metric.label || '-', '最低短板指标'],
-    [topInstitution ? `${topInstitution.institution} ${formatDashboardValue(topInstitution.value, coverageMetric)}` : '-', '覆盖率最高机构'],
   ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
 }
 
@@ -945,6 +953,7 @@ function renderDashboardRanking() {
   const maxScore = Math.max(...rows.map((row) => valueForScore(row.value, metric) || 0), 0.01);
   const topRows = rows.slice(0, 5);
   const bottomRows = rows.length > 5 ? rows.slice(-5) : [];
+  const middleRows = rows.length > 10 ? rows.slice(5, -5) : [];
   const rankRowHtml = (row, index, markerText, markerClass = '') => {
     const score = valueForScore(row.value, metric) || 0;
     const width = Math.max(3, Math.round((score / maxScore) * 100));
@@ -973,18 +982,18 @@ function renderDashboardRanking() {
       ${sectionRows.map((row, index) => rankRowHtml(row, offset + index + 1, `${offset + index + 1}`, markerClass)).join('')}
     `;
   };
-  const fullRanking = dashboardState.rankExpanded ? `
-    <div class="rank-section-title">全部机构表现</div>
-    ${rows.map((row, index) => rankRowHtml(row, index + 1, `${index + 1}`)).join('')}
+  const foldedRanking = dashboardState.rankExpanded ? `
+    <div class="rank-section-title">中间机构表现</div>
+    ${middleRows.length ? middleRows.map((row, index) => rankRowHtml(row, index + 6, `${index + 6}`)).join('') : '<div class="empty-state">暂无被折叠的中间机构</div>'}
   ` : '';
   dashboardRankList.innerHTML = [
     '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>较年初新增</span></div>',
     renderSection('前五家', topRows, 0, 'is-top'),
     `<button class="rank-mini" type="button" data-rank-toggle="true" aria-expanded="${dashboardState.rankExpanded ? 'true' : 'false'}">
       <span class="rank-mini-bars">${miniBars}</span>
-      <strong>${dashboardState.rankExpanded ? '收起全部机构表现' : '点击查看全部机构表现'}</strong>
+      <strong>${dashboardState.rankExpanded ? '收起' : `展开中间 ${middleRows.length} 家`}</strong>
     </button>`,
-    fullRanking,
+    foldedRanking,
     renderSection('后五家', bottomRows, Math.max(0, rows.length - bottomRows.length), 'is-bottom'),
   ].join('');
 }
@@ -1062,23 +1071,91 @@ function renderComboChart(container, series, emptyText) {
   container.innerHTML = validSeries.map((item) => comboChartSvg(item)).join('');
 }
 
-function renderTrendCharts() {
-  const coverageMetric = metricById('coverage');
-  renderComboChart(coverageTrendChart, [{
-    metric: coverageMetric,
-    title: coverageMetric.label,
-    values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, 'coverage') })),
-  }], '暂无综合覆盖率趋势数据');
-
-  const businessSeries = businessTrendMetricIds
+function renderCombinedTrendChart() {
+  const series = combinedTrendMetricIds
     .map((id) => metricById(id))
     .filter((metric) => metric && dashboardState.rows.some((row) => row.metrics[metric.id] != null))
     .map((metric) => ({
       metric,
-      title: metric.label,
       values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, metric.id) })),
-    }));
-  renderComboChart(businessTrendChart, businessSeries, '暂无分业务趋势数据');
+    }))
+    .filter((item) => item.values.some((point) => point.value != null));
+  if (!series.length) {
+    combinedTrendChart.innerHTML = '<div class="empty-state">暂无周度趋势数据</div>';
+    return;
+  }
+
+  const width = 860;
+  const height = 360;
+  const padding = { top: 30, right: 24, bottom: 46, left: 42 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const colors = ['#0f766e', '#2563eb', '#b45309', '#7c3aed', '#0e7490'];
+  const allValues = series.flatMap((item) => item.values.map((point) => point.value)).filter((value) => value != null);
+  const valueMax = Math.max(...allValues, 0.01);
+  const valueMin = Math.min(0, ...allValues);
+  const valueRange = Math.max(valueMax - valueMin, 0.01);
+  const deltaSeries = series.map((item) => {
+    const baseValue = item.values.find((point) => point.value != null)?.value ?? null;
+    return {
+      ...item,
+      deltas: item.values.map((point) => ({
+        week: point.week,
+        value: point.value != null && baseValue != null ? point.value - baseValue : null,
+      })),
+    };
+  });
+  const allDeltas = deltaSeries.flatMap((item) => item.deltas.map((point) => point.value)).filter((value) => value != null);
+  const deltaMax = Math.max(...allDeltas, 0.01);
+  const deltaMin = Math.min(...allDeltas, -0.01);
+  const deltaRange = Math.max(deltaMax - deltaMin, 0.01);
+  const weekStep = dashboardState.weeks.length > 1 ? plotWidth / (dashboardState.weeks.length - 1) : plotWidth;
+  const groupWidth = Math.min(70, Math.max(34, weekStep * 0.68));
+  const barWidth = Math.max(4, groupWidth / Math.max(series.length, 1) - 2);
+  const xForWeek = (index) => padding.left + (dashboardState.weeks.length === 1 ? plotWidth / 2 : index * weekStep);
+  const yForValue = (value) => padding.top + plotHeight - ((value - valueMin) / valueRange) * plotHeight;
+  const yForDelta = (value) => padding.top + plotHeight - ((value - deltaMin) / deltaRange) * plotHeight;
+
+  const bars = series.map((item, seriesIndex) => item.values.map((point, weekIndex) => {
+    if (point.value == null) return '';
+    const groupStart = xForWeek(weekIndex) - groupWidth / 2;
+    const x = groupStart + seriesIndex * (barWidth + 2);
+    const y = yForValue(point.value);
+    const barHeight = Math.max(2, padding.top + plotHeight - y);
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="3" fill="${colors[seriesIndex % colors.length]}" opacity="0.28"></rect>`;
+  }).join('')).join('');
+  const lines = deltaSeries.map((item, seriesIndex) => {
+    const points = item.deltas.map((point, weekIndex) => {
+      if (point.value == null) return null;
+      return `${xForWeek(weekIndex).toFixed(1)},${yForDelta(point.value).toFixed(1)}`;
+    }).filter(Boolean).join(' ');
+    return points ? `<polyline points="${points}" fill="none" stroke="${colors[seriesIndex % colors.length]}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>` : '';
+  }).join('');
+  const xLabels = dashboardState.weeks.map((week, index) => (
+    `<text x="${xForWeek(index).toFixed(1)}" y="${height - 14}" text-anchor="middle">${escapeHtml(week)}</text>`
+  )).join('');
+  const legend = series.map((item, index) => (
+    `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.metric.label)}</span>`
+  )).join('');
+
+  combinedTrendChart.innerHTML = `
+    <svg class="trend-svg combined-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="周度趋势折柱同图">
+      <line x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${width - padding.right}" y2="${padding.top + plotHeight}" class="axis-line"></line>
+      <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}" class="axis-line"></line>
+      <g class="combined-bars">${bars}</g>
+      <g class="combined-lines">${lines}</g>
+      ${xLabels}
+    </svg>
+    <div class="chart-legend">
+      ${legend}
+      <span><i class="legend-bar"></i>柱：当前值</span>
+      <span><i class="legend-line"></i>线：较年初新增</span>
+    </div>
+  `;
+}
+
+function renderTrendCharts() {
+  renderCombinedTrendChart();
 }
 
 function renderHeatmap() {
@@ -1190,14 +1267,14 @@ function renderSingleInstitution() {
 function renderDashboard() {
   if (!dashboardState.rows.length) {
     dashboardKpis.innerHTML = [
-      ['-', '综合业务覆盖率'],
-      ['-', '较年初新增'],
+      ['-', '重点客群数量 / 较年初新增数'],
+      ['-', '综合业务覆盖率 / 较年初新增'],
       ['-', '达标机构数'],
+      ['-', '高渗透客户占比'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     dashboardRankList.innerHTML = '<div class="empty-state">上传 Excel/CSV 或生成模拟数据</div>';
-    coverageTrendChart.innerHTML = '<div class="empty-state">暂无综合覆盖率趋势数据</div>';
-    businessTrendChart.innerHTML = '<div class="empty-state">暂无分业务趋势数据</div>';
+    combinedTrendChart.innerHTML = '<div class="empty-state">暂无周度趋势数据</div>';
     institutionKpis.innerHTML = [
       ['-', '综合业务覆盖率'],
       ['-', '较年初新增'],

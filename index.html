@@ -10,19 +10,19 @@
   <body>
     <header class="topbar">
       <div>
-        <h1>企业最近机构匹配</h1>
+        <h1>周度指标驾驶舱</h1>
         <p>纯静态页面；Key、上传数据、生成结果只在当前浏览器会话内处理。</p>
       </div>
       <div class="topbar-actions">
         <nav class="mode-switch" aria-label="功能切换">
-          <button class="mode-button is-active" type="button" data-mode="matcher">最近机构匹配</button>
-          <button class="mode-button" type="button" data-mode="dashboard">周度指标驾驶舱</button>
+          <button class="mode-button is-active" type="button" data-mode="dashboard">周度指标驾驶舱</button>
+          <button class="mode-button" type="button" data-mode="matcher">最近机构匹配</button>
         </nav>
         <div class="status-pill" id="privacyStatus">不存储数据</div>
       </div>
     </header>
 
-    <section class="view is-active" id="matcherView">
+    <section class="view" id="matcherView">
       <section class="panel key-panel" aria-labelledby="keyTitle">
         <div class="panel-head">
           <h2 id="keyTitle">高德 Key</h2>
@@ -125,7 +125,7 @@
       </main>
     </section>
 
-    <section class="view" id="dashboardView" aria-labelledby="dashboardTitle">
+    <section class="view is-active" id="dashboardView" aria-labelledby="dashboardTitle">
       <main class="dashboard-shell">
         <section class="panel panel-full dashboard-control">
           <div class="panel-head">
@@ -154,7 +154,11 @@
           </div>
         </section>
 
-        <section class="panel panel-full">
+        <section class="panel panel-full" aria-labelledby="overviewTitle">
+          <div class="panel-head">
+            <h2 id="overviewTitle">重点客群综合业务渗透总体情况</h2>
+            <span class="quiet-label">按所选周次</span>
+          </div>
           <div class="metrics dashboard-kpis" id="dashboardKpis"></div>
         </section>
 
@@ -169,18 +173,9 @@
           <div class="panel">
             <div class="panel-head">
               <h2>周度趋势</h2>
-              <span class="quiet-label">分维度展示机构均值</span>
+              <span class="quiet-label">折柱同图展示</span>
             </div>
-            <div class="trend-stack">
-              <div>
-                <h3>综合业务覆盖率</h3>
-                <div class="chart-card compact-chart" id="coverageTrendChart"></div>
-              </div>
-              <div>
-                <h3>分业务覆盖/穿透</h3>
-                <div class="chart-card compact-chart" id="businessTrendChart"></div>
-              </div>
-            </div>
+            <div class="chart-card combined-trend-chart" id="combinedTrendChart"></div>
           </div>
         </section>
 
