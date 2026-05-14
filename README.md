@@ -2,6 +2,8 @@
 
 纯静态 GitHub Pages 工具，用于把企业注册地址匹配到最近机构网点。
 
+同一套页面也可以通过 Electron 打包成 Windows、macOS、Linux 桌面端应用。
+
 ## 数据安全
 
 - 不内置任何本地企业或机构数据。
@@ -31,3 +33,31 @@
 - 企业分布 Top
 - 网点粒度完整排行
 - 数据预览
+
+## 桌面端开发
+
+安装依赖：
+
+```bash
+npm install
+```
+
+启动桌面端：
+
+```bash
+npm run desktop
+```
+
+本机目录打包：
+
+```bash
+npm run pack
+```
+
+生成安装包：
+
+```bash
+npm run dist
+```
+
+打包产物默认输出到 `release/`，不会提交到仓库。

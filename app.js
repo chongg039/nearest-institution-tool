@@ -19,6 +19,7 @@ const queryAddress = document.querySelector('#queryAddress');
 const queryButton = document.querySelector('#queryButton');
 const queryResult = document.querySelector('#queryResult');
 const toast = document.querySelector('#toast');
+const privacyStatus = document.querySelector('#privacyStatus');
 
 const CITY = '成都';
 const CONCURRENCY = 2;
@@ -720,18 +721,10 @@ queryForm.addEventListener('submit', async (event) => {
   }
 });
 
-function requireAmapKey() {
-  const key = getAmapKey();
-  if (!key) {
-    amapKeyInput.focus();
-    throw new Error('请先输入高德 Key');
-  }
-  return key;
-}
-
-function getAmapKey() {
-  return amapKeyInput.value.trim();
-}
-
 setMetrics();
 resetResolvedView();
+
+if (window.desktopRuntime?.isDesktop) {
+  privacyStatus.textContent = `桌面端 ${window.desktopRuntime.platform}`;
+  document.body.classList.add('is-desktop');
+}
