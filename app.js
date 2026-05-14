@@ -52,6 +52,7 @@ let dashboardState = {
   selectedWeek: '',
   selectedMetricId: 'coverage',
   selectedInstitution: '',
+  rankExpanded: false,
   source: '',
 };
 
@@ -847,9 +848,8 @@ function rowsForWeek(week) {
   return dashboardState.rows.filter((row) => row.week === week);
 }
 
-function previousWeekOf(week) {
-  const index = dashboardState.weeks.indexOf(week);
-  return index > 0 ? dashboardState.weeks[index - 1] : '';
+function yearStartWeek() {
+  return dashboardState.weeks[0] || '';
 }
 
 function metricAverageForWeek(week, metricId) {
@@ -871,19 +871,14 @@ function metricById(metricId) {
 
 function renderDashboardControls() {
   const metrics = availableMetrics(dashboardState.rows);
-  const institutions = institutionNames();
   weekSelect.innerHTML = dashboardState.weeks.map((week) => (
     `<option value="${escapeHtml(week)}"${week === dashboardState.selectedWeek ? ' selected' : ''}>${escapeHtml(week)}</option>`
   )).join('');
   rankingMetricSelect.innerHTML = metrics.map((metric) => (
     `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
   )).join('');
-  institutionSelect.innerHTML = institutions.map((institution) => (
-    `<option value="${escapeHtml(institution)}"${institution === dashboardState.selectedInstitution ? ' selected' : ''}>${escapeHtml(institution)}</option>`
-  )).join('');
   weekSelect.disabled = dashboardState.weeks.length <= 1;
   rankingMetricSelect.disabled = metrics.length <= 1;
-  institutionSelect.disabled = institutions.length <= 1;
   dashboardSource.textContent = dashboardState.source || '未载入数据';
 }
 
@@ -896,12 +891,12 @@ function ensureDashboardSelections() {
 
 function renderDashboardKpis() {
   const week = dashboardState.selectedWeek;
-  const previousWeek = previousWeekOf(week);
+  const baseWeek = yearStartWeek();
   const latestRows = rowsForWeek(week);
   const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
   const coverage = metricAverageForWeek(week, 'coverage');
-  const previousCoverage = previousWeek ? metricAverageForWeek(previousWeek, 'coverage') : null;
-  const coverageDelta = coverage != null && previousCoverage != null ? coverage - previousCoverage : null;
+  const baseCoverage = baseWeek ? metricAverageForWeek(baseWeek, 'coverage') : null;
+  const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
   const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
   const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
   const metricWeakness = availableMetrics(latestRows).map((metric) => ({
@@ -915,7 +910,7 @@ function renderDashboardKpis() {
 
   dashboardKpis.innerHTML = [
     [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
-    [formatDelta(coverageDelta, coverageMetric), previousWeek ? `较${previousWeek}` : '暂无环比'],
+    [formatDelta(coverageDelta, coverageMetric), baseWeek ? '较年初新增' : '暂无基准'],
     [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
     [metricWeakness?.metric.label || '-', '最低短板指标'],
     [topInstitution ? `${topInstitution.institution} ${formatDashboardValue(topInstitution.value, coverageMetric)}` : '-', '覆盖率最高机构'],
@@ -927,15 +922,15 @@ function renderDashboardRanking() {
     || metricDefinitions[0];
   const keyCustomersMetric = metricById('keyCustomers');
   const week = dashboardState.selectedWeek;
-  const previousWeek = previousWeekOf(week);
+  const baseWeek = yearStartWeek();
   const rows = rowsForWeek(week).map((row) => {
     const value = row.metrics[metric.id];
-    const previous = previousWeek ? institutionMetricForWeek(previousWeek, row.institution, metric.id) : null;
+    const base = baseWeek ? institutionMetricForWeek(baseWeek, row.institution, metric.id) : null;
     return {
       institution: row.institution,
       value,
       keyCustomers: row.metrics.keyCustomers ?? null,
-      delta: value != null && previous != null ? value - previous : null,
+      delta: value != null && base != null ? value - base : null,
     };
   }).filter((row) => row.value != null).sort((a, b) => {
     if (metric.kind === 'inverseRate') return a.value - b.value || a.institution.localeCompare(b.institution, 'zh-CN');
@@ -964,6 +959,13 @@ function renderDashboardRanking() {
       </div>
     `;
   };
+  const miniBars = rows.map((row, index) => {
+    const score = valueForScore(row.value, metric) || 0;
+    const height = Math.max(10, Math.round((score / maxScore) * 100));
+    const isTop = index < 5;
+    const isBottom = index >= rows.length - 5;
+    return `<span class="${isTop ? 'is-top' : isBottom ? 'is-bottom' : ''}" style="height:${height}%" title="${escapeHtml(row.institution)} ${escapeHtml(formatDashboardValue(row.value, metric))}"></span>`;
+  }).join('');
   const renderSection = (title, sectionRows, offset, markerClass) => {
     if (!sectionRows.length) return '';
     return `
@@ -971,76 +973,112 @@ function renderDashboardRanking() {
       ${sectionRows.map((row, index) => rankRowHtml(row, offset + index + 1, `${offset + index + 1}`, markerClass)).join('')}
     `;
   };
+  const fullRanking = dashboardState.rankExpanded ? `
+    <div class="rank-section-title">全部机构表现</div>
+    ${rows.map((row, index) => rankRowHtml(row, index + 1, `${index + 1}`)).join('')}
+  ` : '';
   dashboardRankList.innerHTML = [
-    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>环比</span></div>',
+    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>较年初新增</span></div>',
     renderSection('前五家', topRows, 0, 'is-top'),
+    `<button class="rank-mini" type="button" data-rank-toggle="true" aria-expanded="${dashboardState.rankExpanded ? 'true' : 'false'}">
+      <span class="rank-mini-bars">${miniBars}</span>
+      <strong>${dashboardState.rankExpanded ? '收起全部机构表现' : '点击查看全部机构表现'}</strong>
+    </button>`,
+    fullRanking,
     renderSection('后五家', bottomRows, Math.max(0, rows.length - bottomRows.length), 'is-bottom'),
   ].join('');
 }
 
-function linePoints(values, width, height, padding, min, max) {
-  const range = Math.max(max - min, 0.01);
-  return values.map((item, index) => {
+function comboChartSvg({ metric, values, title }) {
+  const validValues = values.filter((item) => item.value != null);
+  if (!validValues.length) return '';
+  const width = 680;
+  const height = 230;
+  const padding = 34;
+  const maxValue = Math.max(...validValues.map((item) => item.value));
+  const minValue = Math.min(0, ...validValues.map((item) => item.value));
+  const valueRange = Math.max(maxValue - minValue, 0.01);
+  const baseValue = values.find((item) => item.value != null)?.value ?? null;
+  const deltaValues = values.map((item) => ({
+    ...item,
+    value: item.value != null && baseValue != null ? item.value - baseValue : null,
+  }));
+  const validDeltas = deltaValues.filter((item) => item.value != null);
+  const maxDelta = Math.max(...validDeltas.map((item) => item.value), 0.01);
+  const minDelta = Math.min(...validDeltas.map((item) => item.value), -0.01);
+  const deltaRange = Math.max(maxDelta - minDelta, 0.01);
+  const plotWidth = width - padding * 2;
+  const plotHeight = height - padding * 2;
+  const step = values.length > 1 ? plotWidth / (values.length - 1) : plotWidth;
+  const barWidth = Math.max(12, Math.min(34, step * 0.44));
+  const bars = values.map((item, index) => {
+    if (item.value == null) return '';
+    const x = padding + (values.length === 1 ? plotWidth / 2 : index * step) - barWidth / 2;
+    const normalized = (item.value - minValue) / valueRange;
+    const barHeight = Math.max(2, normalized * plotHeight);
+    const y = height - padding - barHeight;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="4"></rect>`;
+  }).join('');
+  const deltaPoints = deltaValues.map((item, index) => {
     if (item.value == null) return null;
-    const x = padding + (values.length === 1 ? 0 : (index / (values.length - 1)) * (width - padding * 2));
-    const y = height - padding - ((item.value - min) / range) * (height - padding * 2);
+    const x = padding + (values.length === 1 ? plotWidth / 2 : index * step);
+    const y = height - padding - ((item.value - minDelta) / deltaRange) * plotHeight;
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).filter(Boolean).join(' ');
+  const xLabels = values.map((item, index) => {
+    const x = padding + (values.length === 1 ? plotWidth / 2 : index * step);
+    return `<text x="${x.toFixed(1)}" y="${height - 8}" text-anchor="middle">${escapeHtml(item.week)}</text>`;
+  }).join('');
+  const lastValue = validValues[validValues.length - 1]?.value;
+  const lastDelta = validDeltas[validDeltas.length - 1]?.value;
+  return `
+    <div class="combo-chart">
+      <div class="combo-chart-head">
+        <span>${escapeHtml(title || metric.label)}</span>
+        <strong>${escapeHtml(formatDashboardValue(lastValue, metric))}</strong>
+        <em>较年初 ${escapeHtml(formatDelta(lastDelta, metric))}</em>
+      </div>
+      <svg class="trend-svg combo-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title || metric.label)}折柱趋势">
+        <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" class="axis-line"></line>
+        <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" class="axis-line"></line>
+        <g class="combo-bars">${bars}</g>
+        <polyline points="${deltaPoints}" fill="none" class="combo-line" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+        ${xLabels}
+      </svg>
+      <div class="chart-legend">
+        <span><i class="legend-bar"></i>当前值</span>
+        <span><i class="legend-line"></i>较年初新增</span>
+      </div>
+    </div>
+  `;
 }
 
-function renderLineChart(container, series, emptyText, ariaLabel) {
+function renderComboChart(container, series, emptyText) {
   const validSeries = series.filter((item) => item.values.some((point) => point.value != null));
   if (!validSeries.length) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(emptyText)}</div>`;
     return;
   }
-  const width = 680;
-  const height = 220;
-  const padding = 34;
-  const allValues = validSeries.flatMap((item) => item.values.map((point) => point.value)).filter((value) => value != null);
-  const max = Math.max(...allValues);
-  const min = Math.min(...allValues);
-  const domainPadding = Math.max((max - min) * 0.12, 0.01);
-  const domainMin = Math.max(0, min - domainPadding);
-  const domainMax = max + domainPadding;
-  const colors = ['#0f766e', '#2563eb', '#b45309', '#7c3aed'];
-  const lines = validSeries.map((item, index) => {
-    const points = linePoints(item.values, width, height, padding, domainMin, domainMax);
-    return points ? `<polyline points="${points}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>` : '';
-  }).join('');
-  const xLabels = dashboardState.weeks.map((week, index) => {
-    const x = padding + (dashboardState.weeks.length === 1 ? 0 : (index / (dashboardState.weeks.length - 1)) * (width - padding * 2));
-    return `<text x="${x}" y="${height - 8}" text-anchor="middle">${escapeHtml(week)}</text>`;
-  }).join('');
-  const legend = validSeries.map((item, index) => (
-    `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.label)}</span>`
-  )).join('');
-  container.innerHTML = `
-    <svg class="trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(ariaLabel)}">
-      <line x1="${padding}" y1="${height - padding}" x2="${width - padding}" y2="${height - padding}" class="axis-line"></line>
-      <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height - padding}" class="axis-line"></line>
-      ${lines}
-      ${xLabels}
-    </svg>
-    <div class="chart-legend">${legend}</div>
-  `;
+  container.innerHTML = validSeries.map((item) => comboChartSvg(item)).join('');
 }
 
 function renderTrendCharts() {
   const coverageMetric = metricById('coverage');
-  renderLineChart(coverageTrendChart, [{
-    label: coverageMetric.label,
+  renderComboChart(coverageTrendChart, [{
+    metric: coverageMetric,
+    title: coverageMetric.label,
     values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, 'coverage') })),
-  }], '暂无综合覆盖率趋势数据', '综合业务覆盖率趋势');
+  }], '暂无综合覆盖率趋势数据');
 
   const businessSeries = businessTrendMetricIds
     .map((id) => metricById(id))
     .filter((metric) => metric && dashboardState.rows.some((row) => row.metrics[metric.id] != null))
     .map((metric) => ({
-      label: metric.label,
+      metric,
+      title: metric.label,
       values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, metric.id) })),
     }));
-  renderLineChart(businessTrendChart, businessSeries, '暂无分业务趋势数据', '分业务覆盖和穿透趋势');
+  renderComboChart(businessTrendChart, businessSeries, '暂无分业务趋势数据');
 }
 
 function renderHeatmap() {
@@ -1051,18 +1089,24 @@ function renderHeatmap() {
     const bScore = average(metrics.map((metric) => valueForScore(b.metrics[metric.id], metric)));
     return (aScore ?? 0) - (bScore ?? 0);
   });
-  heatmapHint.textContent = `${week}，低分优先`;
+  heatmapHint.textContent = `${week}，圆点标出各机构低分业务`;
   if (!rows.length || !metrics.length) {
     heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
     return;
   }
   const header = metrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('');
   const body = rows.map((row) => {
+    const rowScores = metrics.map((metric) => ({
+      metric,
+      score: valueForScore(row.metrics[metric.id], metric),
+    })).filter((item) => item.score != null);
+    const rowMinScore = rowScores.length ? Math.min(...rowScores.map((item) => item.score)) : null;
     const cells = metrics.map((metric) => {
       const value = row.metrics[metric.id];
       const score = valueForScore(value, metric);
       const level = score == null ? 0 : Math.round(score * 100);
-      return `<td><span class="heat-cell" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, metric))}</span></td>`;
+      const isWeakness = score != null && rowMinScore != null && Math.abs(score - rowMinScore) < 0.0001;
+      return `<td><span class="heat-cell ${isWeakness ? 'is-row-low' : ''}" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, metric))}</span></td>`;
     }).join('');
     return `<tr><th>${escapeHtml(row.institution)}</th>${cells}</tr>`;
   }).join('');
@@ -1078,15 +1122,20 @@ function renderSingleInstitution() {
   const week = dashboardState.selectedWeek;
   const institution = dashboardState.selectedInstitution;
   const row = rowsForWeek(week).find((item) => item.institution === institution);
-  const previousWeek = previousWeekOf(week);
+  const baseWeek = yearStartWeek();
   const coverageMetric = metricById('coverage');
   const keyCustomersMetric = metricById('keyCustomers');
-  institutionHint.textContent = institution ? `${institution} / ${week}` : '按所选机构';
+  institutionHint.textContent = institution ? `单一机构 / ${week}` : '单一机构';
+  const institutions = institutionNames();
+  institutionSelect.innerHTML = institutions.map((item) => (
+    `<option value="${escapeHtml(item)}"${item === dashboardState.selectedInstitution ? ' selected' : ''}>${escapeHtml(item)}</option>`
+  )).join('');
+  institutionSelect.disabled = institutions.length <= 1;
 
   if (!row) {
     institutionKpis.innerHTML = [
       ['-', '综合业务覆盖率'],
-      ['-', '覆盖率环比'],
+      ['-', '较年初新增'],
       ['-', '重点客群数'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
@@ -1096,8 +1145,8 @@ function renderSingleInstitution() {
   }
 
   const coverage = row.metrics.coverage ?? null;
-  const previousCoverage = previousWeek ? institutionMetricForWeek(previousWeek, institution, 'coverage') : null;
-  const coverageDelta = coverage != null && previousCoverage != null ? coverage - previousCoverage : null;
+  const baseCoverage = baseWeek ? institutionMetricForWeek(baseWeek, institution, 'coverage') : null;
+  const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
   const weakness = availableMetrics([row]).map((metric) => ({
     metric,
     score: valueForScore(row.metrics[metric.id], metric),
@@ -1105,7 +1154,7 @@ function renderSingleInstitution() {
 
   institutionKpis.innerHTML = [
     [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
-    [formatDelta(coverageDelta, coverageMetric), previousWeek ? `较${previousWeek}` : '暂无环比'],
+    [formatDelta(coverageDelta, coverageMetric), baseWeek ? '较年初新增' : '暂无基准'],
     [formatDashboardValue(row.metrics.keyCustomers, keyCustomersMetric), '重点客群数'],
     [weakness?.metric.label || '-', '最低短板指标'],
   ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
@@ -1128,20 +1177,21 @@ function renderSingleInstitution() {
     `;
   }).join('') || '<div class="empty-state">暂无业务指标</div>';
 
-  renderLineChart(institutionTrendChart, [{
-    label: `${institution} 综合业务覆盖率`,
+  renderComboChart(institutionTrendChart, [{
+    metric: coverageMetric,
+    title: `${institution} 综合业务覆盖率`,
     values: dashboardState.weeks.map((itemWeek) => ({
       week: itemWeek,
       value: institutionMetricForWeek(itemWeek, institution, 'coverage'),
     })),
-  }], '暂无机构趋势数据', `${institution} 综合业务覆盖率趋势`);
+  }], '暂无机构趋势数据');
 }
 
 function renderDashboard() {
   if (!dashboardState.rows.length) {
     dashboardKpis.innerHTML = [
       ['-', '综合业务覆盖率'],
-      ['-', '暂无环比'],
+      ['-', '较年初新增'],
       ['-', '达标机构数'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
@@ -1150,7 +1200,7 @@ function renderDashboard() {
     businessTrendChart.innerHTML = '<div class="empty-state">暂无分业务趋势数据</div>';
     institutionKpis.innerHTML = [
       ['-', '综合业务覆盖率'],
-      ['-', '覆盖率环比'],
+      ['-', '较年初新增'],
       ['-', '重点客群数'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
@@ -1189,6 +1239,7 @@ function loadDashboardData(dataset) {
     selectedInstitution: institutions.includes(dashboardState.selectedInstitution)
       ? dashboardState.selectedInstitution
       : institutions[0] || '',
+    rankExpanded: false,
     source: dataset.source,
   };
   renderDashboard();
@@ -1202,6 +1253,13 @@ toggleKeyButton.addEventListener('click', () => {
 
 modeButtons.forEach((button) => {
   button.addEventListener('click', () => setMode(button.dataset.mode));
+});
+
+dashboardRankList.addEventListener('click', (event) => {
+  const toggle = event.target.closest('[data-rank-toggle]');
+  if (!toggle) return;
+  dashboardState.rankExpanded = !dashboardState.rankExpanded;
+  renderDashboardRanking();
 });
 
 dashboardFileInput.addEventListener('change', async () => {

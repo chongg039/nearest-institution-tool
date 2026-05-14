@@ -150,10 +150,6 @@
               <span>排行指标</span>
               <select id="rankingMetricSelect"></select>
             </label>
-            <label class="field compact-field">
-              <span>单一机构</span>
-              <select id="institutionSelect"></select>
-            </label>
             <div class="source-note" id="dashboardSource">未载入数据</div>
           </div>
         </section>
@@ -191,7 +187,10 @@
         <section class="panel panel-full">
           <div class="panel-head">
             <h2>单一机构分析</h2>
-            <span class="quiet-label" id="institutionHint">按所选机构</span>
+            <label class="field compact-field institution-select-field">
+              <span id="institutionHint">单一机构</span>
+              <select id="institutionSelect"></select>
+            </label>
           </div>
           <div class="metrics institution-kpis" id="institutionKpis"></div>
           <div class="institution-layout">

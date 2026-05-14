@@ -368,7 +368,7 @@ textarea:focus {
 
 .dashboard-toolbar {
   display: grid;
-  grid-template-columns: minmax(150px, 190px) minmax(180px, 240px) minmax(160px, 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(150px, 190px) minmax(180px, 240px) minmax(0, 1fr);
   align-items: end;
   gap: 14px;
 }
@@ -429,6 +429,51 @@ textarea:focus {
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
+}
+
+.rank-mini {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  padding: 10px;
+  cursor: pointer;
+}
+
+.rank-mini:hover {
+  border-color: rgba(15, 118, 110, 0.42);
+  color: var(--accent);
+}
+
+.rank-mini-bars {
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  height: 46px;
+}
+
+.rank-mini-bars span {
+  flex: 1;
+  min-width: 4px;
+  border-radius: 4px 4px 0 0;
+  background: #cbd5e1;
+}
+
+.rank-mini-bars span.is-top {
+  background: var(--accent);
+}
+
+.rank-mini-bars span.is-bottom {
+  background: var(--warn);
+}
+
+.rank-mini strong {
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
 }
 
 .dashboard-rank-row {
@@ -519,6 +564,59 @@ textarea:focus {
   background: #fff;
 }
 
+.combo-chart {
+  display: grid;
+  gap: 8px;
+}
+
+.combo-chart + .combo-chart {
+  margin-top: 14px;
+}
+
+.combo-chart-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.combo-chart-head span {
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combo-chart-head strong {
+  font-size: 14px;
+}
+
+.combo-chart-head em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.combo-svg {
+  min-height: 220px;
+}
+
+.combo-bars rect {
+  fill: rgba(15, 118, 110, 0.35);
+}
+
+.combo-line {
+  stroke: var(--warn);
+}
+
+.legend-bar {
+  background: rgba(15, 118, 110, 0.5);
+}
+
+.legend-line {
+  background: var(--warn);
+}
+
 .trend-svg text {
   fill: var(--muted);
   font-size: 12px;
@@ -551,6 +649,10 @@ textarea:focus {
 
 .institution-kpis {
   margin-top: 0;
+}
+
+.institution-select-field {
+  width: min(260px, 38vw);
 }
 
 .institution-layout {
@@ -626,12 +728,31 @@ textarea:focus {
 .heat-cell {
   display: inline-flex;
   justify-content: center;
+  position: relative;
   min-width: 66px;
   border-radius: 7px;
   background: hsl(calc(28 + var(--heat) * 1.12) 58% 34%);
   color: #fff;
   padding: 6px 8px;
   font-weight: 650;
+}
+
+.heat-cell.is-row-low {
+  outline: 3px solid rgba(180, 83, 9, 0.45);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 1px #fff inset;
+}
+
+.heat-cell.is-row-low::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--warn);
 }
 
 .result-table {
@@ -874,6 +995,16 @@ textarea:focus {
 
   .rank-key-customers {
     font-size: 12px;
+  }
+
+  .combo-chart-head {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 4px;
+  }
+
+  .institution-select-field {
+    width: 100%;
   }
 
   .rank-layout {
