@@ -73,17 +73,18 @@ let dashboardState = {
 };
 
 const metricDefinitions = [
-  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合业务指标'], kind: 'rate', target: 0.65 },
-  { id: 'bill', label: '电票业务穿透率', aliases: ['电票业务穿透率', '电票业务渗透率'], kind: 'rate', target: 0.55 },
-  { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率'], kind: 'rate', target: 0.55 },
-  { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率'], kind: 'rate', target: 0.5 },
-  { id: 'stateBusiness', label: '国业业务穿透率', aliases: ['国业业务穿透率', '国业业务渗透率'], kind: 'rate', target: 0.45 },
+  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标'], kind: 'rate', target: 0.65 },
+  { id: 'bill', label: '电票业务穿透率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率'], kind: 'rate', target: 0.55 },
+  { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率', '收单覆盖率'], kind: 'rate', target: 0.55 },
+  { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率', '代发覆盖率'], kind: 'rate', target: 0.5 },
+  { id: 'stateBusiness', label: '国业业务穿透率', aliases: ['国业业务穿透率', '国业业务渗透率', '国业覆盖率'], kind: 'rate', target: 0.45 },
   { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比'], kind: 'rate', target: 0.35 },
-  { id: 'settlement', label: '对公结算业务', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率'], kind: 'rate', target: 0.55 },
+  { id: 'settlement', label: '对公结算业务', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率', '结算活跃率'], kind: 'rate', target: 0.55 },
   { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
-  { id: 'contribution', label: '综合业务备款贡献度', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度'], kind: 'rate', target: 0.45 },
+  { id: 'contribution', label: '综合业务备款贡献度', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
   { id: 'interest', label: '综合付息率', aliases: ['综合付息率'], kind: 'inverseRate', target: 0.018 },
-  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群'], kind: 'count', target: 50 },
+  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数'], kind: 'count', target: 50 },
+  { id: 'loanCustomers', label: '贷款户数量', aliases: ['贷款户数量', '贷款户数'], kind: 'count', target: 50 },
 ];
 
 const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
@@ -743,6 +744,96 @@ function findHeaderIndex(header, names) {
   return -1;
 }
 
+function headerMatchesAny(value, names) {
+  const normalized = normalizeHeaderName(value);
+  return names.some((name) => normalized.includes(normalizeHeaderName(name)));
+}
+
+function findExactHeaderColumn(labels, names) {
+  const normalized = labels.map(normalizeHeaderName);
+  for (const name of names) {
+    const index = normalized.indexOf(normalizeHeaderName(name));
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+function isFormulaHeaderCell(value) {
+  const text = String(value || '').trim();
+  return Boolean(text && /[×*/=]/.test(text));
+}
+
+function dashboardColumnLabel(headerRows, columnIndex) {
+  for (let rowIndex = headerRows.length - 1; rowIndex >= 0; rowIndex -= 1) {
+    const value = String(headerRows[rowIndex]?.[columnIndex] || '').trim();
+    if (value && !isFormulaHeaderCell(value)) return value;
+  }
+  return headerRows
+    .map((row) => String(row[columnIndex] || '').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function hasNumericCell(row, ignoredIndexes = []) {
+  return row.some((cell, index) => !ignoredIndexes.includes(index) && /\d/.test(String(cell || '')));
+}
+
+function isAggregateInstitution(value) {
+  return /^(总计|合计|小计)$/i.test(String(value || '').trim());
+}
+
+function detectDashboardHeader(rows) {
+  const maxHeaderRows = Math.min(rows.length, 8);
+  for (let rowIndex = 0; rowIndex < maxHeaderRows; rowIndex += 1) {
+    const index = findHeaderIndex(rows[rowIndex], ['机构', '机构名称', '网点', '支行']);
+    if (index !== -1) return { rowIndex, index };
+  }
+  return { rowIndex: 0, index: -1 };
+}
+
+function detectDashboardDataStart(rows, institutionIndex, headerRowIndex) {
+  for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+    const institution = String(rows[rowIndex]?.[institutionIndex] || '').trim();
+    if (institution && !isAggregateInstitution(institution) && hasNumericCell(rows[rowIndex], [institutionIndex])) {
+      return rowIndex;
+    }
+  }
+  return headerRowIndex + 1;
+}
+
+function maxColumnCount(rows) {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0);
+}
+
+function detectMetricColumns(labels, ignoredIndexes = []) {
+  const metricColumns = [];
+  const used = new Set();
+  labels.forEach((label, index) => {
+    if (ignoredIndexes.includes(index)) return;
+    const metric = metricDefinitions.find((item) => headerMatchesAny(label, item.aliases));
+    if (!metric) return;
+    const phase = /年初/.test(String(label)) ? 'baseline' : 'current';
+    const key = `${metric.id}:${phase}`;
+    if (used.has(key)) return;
+    used.add(key);
+    metricColumns.push({ metric, index, phase });
+  });
+  return metricColumns;
+}
+
+function currentWeekFromLabels(labels, fallback = '本周') {
+  const joined = labels.join(' ');
+  const compactDate = joined.match(/(?:^|[^\d])(\d{1,2})(\d{2})(?=\D)/);
+  if (compactDate) {
+    const month = Number(compactDate[1]);
+    const day = Number(compactDate[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return `${month}月${day}日`;
+  }
+  const monthText = joined.match(/(\d{1,2})月/);
+  if (monthText) return `${Number(monthText[1])}月`;
+  return fallback;
+}
+
 function parseDashboardNumber(value, metric) {
   const raw = String(value ?? '').trim();
   if (!raw || raw === '-' || raw === '--') return null;
@@ -801,35 +892,44 @@ function sortWeeks(weeks) {
 }
 
 function parseDashboardCsv(csvText, source = '上传文件') {
-  const rows = parseCsv(csvText);
+  const rows = parseCsv(csvText).filter((row) => row.some((cell) => String(cell || '').trim()));
   if (rows.length < 2) throw new Error('指标文件没有数据行');
-  const header = rows[0];
-  const institutionIndex = findHeaderIndex(header, ['机构', '机构名称', '网点', '支行']);
+  const { rowIndex: headerRowIndex, index: institutionIndex } = detectDashboardHeader(rows);
   if (institutionIndex === -1) throw new Error('指标文件缺少 机构 列');
-  const yearIndex = findHeaderIndex(header, ['年份', '年', '年度']);
-  const weekIndex = findHeaderIndex(header, ['周次', '周', '统计周', '日期']);
-  const metricColumns = metricDefinitions.map((metric) => ({
-    metric,
-    index: findHeaderIndex(header, metric.aliases),
-  })).filter((item) => item.index !== -1);
+  const dataStartIndex = detectDashboardDataStart(rows, institutionIndex, headerRowIndex);
+  const headerRows = rows.slice(headerRowIndex, dataStartIndex);
+  const columnCount = maxColumnCount(rows);
+  const labels = Array.from({ length: columnCount }, (_, index) => dashboardColumnLabel(headerRows, index));
+  const yearIndex = findExactHeaderColumn(labels, ['年份', '年', '年度']);
+  const weekIndex = findExactHeaderColumn(labels, ['周次', '周', '统计周', '日期']);
+  const metricColumns = detectMetricColumns(labels, [institutionIndex, yearIndex, weekIndex].filter((index) => index !== -1));
   if (!metricColumns.length) throw new Error('指标文件没有可识别的指标列');
+  const currentWeek = currentWeekFromLabels(labels);
 
-  const parsedRows = rows.slice(1).map((row) => {
+  const parsedRows = rows.slice(dataStartIndex).flatMap((row) => {
     const institution = String(row[institutionIndex] || '').trim();
-    if (!institution) return null;
-    const metrics = {};
-    for (const { metric, index } of metricColumns) {
+    if (!institution || isAggregateInstitution(institution)) return [];
+    const currentMetrics = {};
+    const baselineMetrics = {};
+    for (const { metric, index, phase } of metricColumns) {
       const value = parseDashboardNumber(row[index], metric);
-      if (value != null) metrics[metric.id] = value;
+      if (value == null) continue;
+      const target = phase === 'baseline' ? baselineMetrics : currentMetrics;
+      target[metric.id] = value;
     }
-    const week = weekIndex >= 0 ? String(row[weekIndex] || '').trim() || '本周' : '本周';
-    return {
-      year: inferYear(week, yearIndex >= 0 ? row[yearIndex] : ''),
-      week,
-      institution,
-      metrics,
-    };
-  }).filter(Boolean);
+    const explicitWeek = weekIndex >= 0 ? String(row[weekIndex] || '').trim() : '';
+    const week = explicitWeek || currentWeek;
+    const explicitYear = yearIndex >= 0 ? row[yearIndex] : '';
+    const year = inferYear(`${source} ${week}`, explicitYear);
+    const result = [];
+    if (Object.keys(baselineMetrics).length) {
+      result.push({ year, week: '年初', institution, metrics: baselineMetrics });
+    }
+    if (Object.keys(currentMetrics).length) {
+      result.push({ year, week, institution, metrics: currentMetrics });
+    }
+    return result;
+  });
 
   if (!parsedRows.length) throw new Error('指标文件没有有效机构数据');
   return {
