@@ -25,9 +25,17 @@ const matcherView = document.querySelector('#matcherView');
 const dashboardView = document.querySelector('#dashboardView');
 const dashboardFileInput = document.querySelector('#dashboardFile');
 const sampleDashboardButton = document.querySelector('#sampleDashboardButton');
+const yearSelect = document.querySelector('#yearSelect');
 const weekSelect = document.querySelector('#weekSelect');
+const overviewScopeSelect = document.querySelector('#overviewScopeSelect');
 const rankingMetricSelect = document.querySelector('#rankingMetricSelect');
+const rankingScopeSelect = document.querySelector('#rankingScopeSelect');
+const trendChartTypeSelect = document.querySelector('#trendChartTypeSelect');
+const trendMetricPicker = document.querySelector('#trendMetricPicker');
 const institutionSelect = document.querySelector('#institutionSelect');
+const institutionMetricSelect = document.querySelector('#institutionMetricSelect');
+const heatmapMetricScopeSelect = document.querySelector('#heatmapMetricScopeSelect');
+const heatmapSortSelect = document.querySelector('#heatmapSortSelect');
 const dashboardSource = document.querySelector('#dashboardSource');
 const dashboardKpis = document.querySelector('#dashboardKpis');
 const dashboardRankList = document.querySelector('#dashboardRankList');
@@ -47,10 +55,19 @@ let outputUrl = '';
 let toastTimer = null;
 let dashboardState = {
   rows: [],
+  years: [],
   weeks: [],
+  selectedYear: '',
   selectedWeek: '',
   selectedMetricId: 'coverage',
+  overviewScope: 'all',
+  rankingScope: 'all',
+  trendChartType: 'combo',
+  selectedTrendMetricIds: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
   selectedInstitution: '',
+  selectedInstitutionMetricId: 'coverage',
+  heatmapMetricScope: 'core',
+  heatmapSort: 'weak',
   rankExpanded: false,
   source: '',
 };
@@ -70,6 +87,10 @@ const metricDefinitions = [
 ];
 
 const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
+const heatmapMetricGroups = {
+  core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
+  contribution: ['settlement', 'loan', 'contribution', 'interest'],
+};
 
 function showToast(message, type = 'info') {
   toast.textContent = message;
@@ -766,6 +787,12 @@ function getWeekRank(week) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function inferYear(text, explicitYear = '') {
+  const directYear = String(explicitYear || '').match(/(?:19|20)\d{2}/)?.[0];
+  if (directYear) return directYear;
+  return String(text || '').match(/(?:19|20)\d{2}/)?.[0] || '未标年份';
+}
+
 function sortWeeks(weeks) {
   return [...weeks].sort((a, b) => {
     const rank = getWeekRank(a) - getWeekRank(b);
@@ -779,6 +806,7 @@ function parseDashboardCsv(csvText, source = '上传文件') {
   const header = rows[0];
   const institutionIndex = findHeaderIndex(header, ['机构', '机构名称', '网点', '支行']);
   if (institutionIndex === -1) throw new Error('指标文件缺少 机构 列');
+  const yearIndex = findHeaderIndex(header, ['年份', '年', '年度']);
   const weekIndex = findHeaderIndex(header, ['周次', '周', '统计周', '日期']);
   const metricColumns = metricDefinitions.map((metric) => ({
     metric,
@@ -794,8 +822,10 @@ function parseDashboardCsv(csvText, source = '上传文件') {
       const value = parseDashboardNumber(row[index], metric);
       if (value != null) metrics[metric.id] = value;
     }
+    const week = weekIndex >= 0 ? String(row[weekIndex] || '').trim() || '本周' : '本周';
     return {
-      week: weekIndex >= 0 ? String(row[weekIndex] || '').trim() || '本周' : '本周',
+      year: inferYear(week, yearIndex >= 0 ? row[yearIndex] : ''),
+      week,
       institution,
       metrics,
     };
@@ -804,6 +834,7 @@ function parseDashboardCsv(csvText, source = '上传文件') {
   if (!parsedRows.length) throw new Error('指标文件没有有效机构数据');
   return {
     rows: parsedRows,
+    years: [...new Set(parsedRows.map((row) => row.year))].sort(),
     weeks: sortWeeks([...new Set(parsedRows.map((row) => row.week))]),
     source,
   };
@@ -811,13 +842,15 @@ function parseDashboardCsv(csvText, source = '上传文件') {
 
 function generateDashboardSample() {
   const institutions = ['机构A', '机构B', '机构C', '机构D', '机构E', '机构F', '机构G', '机构H', '机构I', '机构J'];
-  const weeks = Array.from({ length: 8 }, (_, index) => `第${index + 1}周`);
+  const sampleYear = '2026';
+  const weeks = Array.from({ length: 8 }, (_, index) => `${sampleYear}年第${index + 1}周`);
   const rows = [];
   weeks.forEach((week, weekIndex) => {
     institutions.forEach((institution, institutionIndex) => {
       const base = 0.38 + institutionIndex * 0.035 + weekIndex * 0.018;
       const wave = Math.sin((institutionIndex + 1) * (weekIndex + 2)) * 0.025;
       rows.push({
+        year: sampleYear,
         week,
         institution,
         metrics: {
@@ -836,19 +869,27 @@ function generateDashboardSample() {
       });
     });
   });
-  return { rows, weeks, source: '模拟数据：8周 / 10机构' };
+  return { rows, years: [sampleYear], weeks, source: '模拟数据：2026年 / 8周 / 10机构' };
 }
 
 function availableMetrics(rows) {
   return metricDefinitions.filter((metric) => rows.some((row) => row.metrics[metric.id] != null));
 }
 
+function rowsForYear(year = dashboardState.selectedYear) {
+  return dashboardState.rows.filter((row) => row.year === year);
+}
+
+function weeksForYear(year = dashboardState.selectedYear) {
+  return sortWeeks([...new Set(rowsForYear(year).map((row) => row.week))]);
+}
+
 function rowsForWeek(week) {
-  return dashboardState.rows.filter((row) => row.week === week);
+  return dashboardState.rows.filter((row) => row.year === dashboardState.selectedYear && row.week === week);
 }
 
 function yearStartWeek() {
-  return dashboardState.weeks[0] || '';
+  return weeksForYear()[0] || '';
 }
 
 function metricAverageForWeek(week, metricId) {
@@ -860,7 +901,7 @@ function institutionMetricForWeek(week, institution, metricId) {
 }
 
 function institutionNames() {
-  return [...new Set(dashboardState.rows.map((row) => row.institution))]
+  return [...new Set(rowsForYear().map((row) => row.institution))]
     .sort((a, b) => a.localeCompare(b, 'zh-CN'));
 }
 
@@ -868,30 +909,90 @@ function metricById(metricId) {
   return metricDefinitions.find((metric) => metric.id === metricId);
 }
 
+function filterRowsByScope(rows, scope) {
+  if (scope === 'reached') return rows.filter((row) => row.metrics.coverage != null && row.metrics.coverage >= metricById('coverage').target);
+  if (scope === 'unreached') return rows.filter((row) => row.metrics.coverage != null && row.metrics.coverage < metricById('coverage').target);
+  return rows;
+}
+
+function selectableTrendMetrics() {
+  return combinedTrendMetricIds
+    .map((id) => metricById(id))
+    .filter((metric) => metric && rowsForYear().some((row) => row.metrics[metric.id] != null));
+}
+
+function ensureTrendMetricSelection() {
+  const allowedIds = selectableTrendMetrics().map((metric) => metric.id);
+  const selected = dashboardState.selectedTrendMetricIds.filter((id) => allowedIds.includes(id));
+  dashboardState.selectedTrendMetricIds = selected.length ? selected : allowedIds.slice(0, 5);
+}
+
+function heatmapMetricsForSelection(rows) {
+  const metrics = availableMetrics(rows);
+  if (dashboardState.heatmapMetricScope === 'all') return metrics;
+  const group = heatmapMetricGroups[dashboardState.heatmapMetricScope] || heatmapMetricGroups.core;
+  return group.map((id) => metricById(id)).filter((metric) => metric && rows.some((row) => row.metrics[metric.id] != null));
+}
+
 function renderDashboardControls() {
-  const metrics = availableMetrics(dashboardState.rows);
-  weekSelect.innerHTML = dashboardState.weeks.map((week) => (
+  const metrics = availableMetrics(rowsForYear());
+  const yearWeeks = weeksForYear();
+  yearSelect.innerHTML = dashboardState.years.map((year) => (
+    `<option value="${escapeHtml(year)}"${year === dashboardState.selectedYear ? ' selected' : ''}>${escapeHtml(year)}</option>`
+  )).join('');
+  weekSelect.innerHTML = yearWeeks.map((week) => (
     `<option value="${escapeHtml(week)}"${week === dashboardState.selectedWeek ? ' selected' : ''}>${escapeHtml(week)}</option>`
   )).join('');
   rankingMetricSelect.innerHTML = metrics.map((metric) => (
     `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
   )).join('');
-  weekSelect.disabled = dashboardState.weeks.length <= 1;
+  yearSelect.disabled = dashboardState.years.length <= 1;
+  weekSelect.disabled = yearWeeks.length <= 1;
   rankingMetricSelect.disabled = metrics.length <= 1;
+  overviewScopeSelect.value = dashboardState.overviewScope;
+  rankingScopeSelect.value = dashboardState.rankingScope;
+  trendChartTypeSelect.value = dashboardState.trendChartType;
+  heatmapMetricScopeSelect.value = dashboardState.heatmapMetricScope;
+  heatmapSortSelect.value = dashboardState.heatmapSort;
   dashboardSource.textContent = dashboardState.source || '未载入数据';
 }
 
+function renderTrendMetricPicker() {
+  const metrics = selectableTrendMetrics();
+  trendMetricPicker.innerHTML = metrics.map((metric) => `
+    <label class="metric-chip">
+      <input type="checkbox" value="${metric.id}" ${dashboardState.selectedTrendMetricIds.includes(metric.id) ? 'checked' : ''}>
+      <span>${escapeHtml(metric.label)}</span>
+    </label>
+  `).join('') || '<div class="empty-state">暂无可选指标</div>';
+}
+
 function ensureDashboardSelections() {
+  if (!dashboardState.years.includes(dashboardState.selectedYear)) {
+    dashboardState.selectedYear = dashboardState.years[dashboardState.years.length - 1] || '';
+  }
+  const yearWeeks = weeksForYear();
+  if (!yearWeeks.includes(dashboardState.selectedWeek)) {
+    dashboardState.selectedWeek = yearWeeks[yearWeeks.length - 1] || '';
+  }
   const weekRows = rowsForWeek(dashboardState.selectedWeek);
   if (!weekRows.some((row) => row.institution === dashboardState.selectedInstitution)) {
     dashboardState.selectedInstitution = weekRows[0]?.institution || institutionNames()[0] || '';
   }
+  const yearMetrics = availableMetrics(rowsForYear());
+  if (!yearMetrics.some((metric) => metric.id === dashboardState.selectedMetricId)) {
+    dashboardState.selectedMetricId = yearMetrics[0]?.id || 'coverage';
+  }
+  if (!yearMetrics.some((metric) => metric.id === dashboardState.selectedInstitutionMetricId)) {
+    dashboardState.selectedInstitutionMetricId = yearMetrics[0]?.id || 'coverage';
+  }
+  ensureTrendMetricSelection();
 }
 
 function renderDashboardKpis() {
   const week = dashboardState.selectedWeek;
   const baseWeek = yearStartWeek();
-  const latestRows = rowsForWeek(week);
+  const latestRows = filterRowsByScope(rowsForWeek(week), dashboardState.overviewScope);
   const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
   const keyCustomersMetric = metricById('keyCustomers');
   const highPenetrationMetric = metricById('highPenetration');
@@ -931,7 +1032,7 @@ function renderDashboardRanking() {
   const keyCustomersMetric = metricById('keyCustomers');
   const week = dashboardState.selectedWeek;
   const baseWeek = yearStartWeek();
-  const rows = rowsForWeek(week).map((row) => {
+  const rows = filterRowsByScope(rowsForWeek(week), dashboardState.rankingScope).map((row) => {
     const value = row.metrics[metric.id];
     const base = baseWeek ? institutionMetricForWeek(baseWeek, row.institution, metric.id) : null;
     return {
@@ -1072,12 +1173,16 @@ function renderComboChart(container, series, emptyText) {
 }
 
 function renderCombinedTrendChart() {
-  const series = combinedTrendMetricIds
+  const yearWeeks = weeksForYear();
+  const selectedMetricIds = dashboardState.selectedTrendMetricIds.length
+    ? dashboardState.selectedTrendMetricIds
+    : selectableTrendMetrics().map((metric) => metric.id);
+  const series = selectedMetricIds
     .map((id) => metricById(id))
-    .filter((metric) => metric && dashboardState.rows.some((row) => row.metrics[metric.id] != null))
+    .filter((metric) => metric && rowsForYear().some((row) => row.metrics[metric.id] != null))
     .map((metric) => ({
       metric,
-      values: dashboardState.weeks.map((week) => ({ week, value: metricAverageForWeek(week, metric.id) })),
+      values: yearWeeks.map((week) => ({ week, value: metricAverageForWeek(week, metric.id) })),
     }))
     .filter((item) => item.values.some((point) => point.value != null));
   if (!series.length) {
@@ -1109,10 +1214,10 @@ function renderCombinedTrendChart() {
   const deltaMax = Math.max(...allDeltas, 0.01);
   const deltaMin = Math.min(...allDeltas, -0.01);
   const deltaRange = Math.max(deltaMax - deltaMin, 0.01);
-  const weekStep = dashboardState.weeks.length > 1 ? plotWidth / (dashboardState.weeks.length - 1) : plotWidth;
+  const weekStep = yearWeeks.length > 1 ? plotWidth / (yearWeeks.length - 1) : plotWidth;
   const groupWidth = Math.min(70, Math.max(34, weekStep * 0.68));
   const barWidth = Math.max(4, groupWidth / Math.max(series.length, 1) - 2);
-  const xForWeek = (index) => padding.left + (dashboardState.weeks.length === 1 ? plotWidth / 2 : index * weekStep);
+  const xForWeek = (index) => padding.left + (yearWeeks.length === 1 ? plotWidth / 2 : index * weekStep);
   const yForValue = (value) => padding.top + plotHeight - ((value - valueMin) / valueRange) * plotHeight;
   const yForDelta = (value) => padding.top + plotHeight - ((value - deltaMin) / deltaRange) * plotHeight;
 
@@ -1131,12 +1236,25 @@ function renderCombinedTrendChart() {
     }).filter(Boolean).join(' ');
     return points ? `<polyline points="${points}" fill="none" stroke="${colors[seriesIndex % colors.length]}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>` : '';
   }).join('');
-  const xLabels = dashboardState.weeks.map((week, index) => (
+  const xLabels = yearWeeks.map((week, index) => (
     `<text x="${xForWeek(index).toFixed(1)}" y="${height - 14}" text-anchor="middle">${escapeHtml(week)}</text>`
   )).join('');
   const legend = series.map((item, index) => (
     `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.metric.label)}</span>`
   )).join('');
+
+  if (dashboardState.trendChartType === 'radar') {
+    renderRadarChart(series);
+    return;
+  }
+  if (dashboardState.trendChartType === 'rose') {
+    renderRoseChart(series);
+    return;
+  }
+  if (dashboardState.trendChartType === 'heatmap') {
+    renderTrendHeatmap(series);
+    return;
+  }
 
   combinedTrendChart.innerHTML = `
     <svg class="trend-svg combined-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="周度趋势折柱同图">
@@ -1154,14 +1272,101 @@ function renderCombinedTrendChart() {
   `;
 }
 
+function latestMetricValue(seriesItem) {
+  const point = seriesItem.values.find((item) => item.week === dashboardState.selectedWeek)
+    || seriesItem.values.filter((item) => item.value != null).at(-1);
+  return point?.value ?? null;
+}
+
+function renderRadarChart(series) {
+  const width = 520;
+  const height = 420;
+  const cx = width / 2;
+  const cy = 210;
+  const radius = 138;
+  const points = series.map((item, index) => {
+    const score = valueForScore(latestMetricValue(item), item.metric) ?? 0;
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / Math.max(series.length, 1);
+    return {
+      item,
+      score,
+      x: cx + Math.cos(angle) * radius * score,
+      y: cy + Math.sin(angle) * radius * score,
+      labelX: cx + Math.cos(angle) * (radius + 34),
+      labelY: cy + Math.sin(angle) * (radius + 34),
+      axisX: cx + Math.cos(angle) * radius,
+      axisY: cy + Math.sin(angle) * radius,
+    };
+  });
+  const polygon = points.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' ');
+  const axes = points.map((point) => `
+    <line x1="${cx}" y1="${cy}" x2="${point.axisX.toFixed(1)}" y2="${point.axisY.toFixed(1)}" class="axis-line"></line>
+    <text x="${point.labelX.toFixed(1)}" y="${point.labelY.toFixed(1)}" text-anchor="middle">${escapeHtml(point.item.metric.label)}</text>
+  `).join('');
+  const rings = [0.25, 0.5, 0.75, 1].map((scale) => (
+    `<circle cx="${cx}" cy="${cy}" r="${(radius * scale).toFixed(1)}" class="radar-ring"></circle>`
+  )).join('');
+  combinedTrendChart.innerHTML = `
+    <svg class="trend-svg radar-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="周度指标雷达图">
+      ${rings}
+      ${axes}
+      <polygon points="${polygon}" class="radar-area"></polygon>
+      ${points.map((point) => `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4" class="radar-point"></circle>`).join('')}
+    </svg>
+    <div class="chart-legend"><span>按 ${escapeHtml(dashboardState.selectedWeek)} 当前值归一化展示</span></div>
+  `;
+}
+
+function renderRoseChart(series) {
+  const maxScore = Math.max(...series.map((item) => valueForScore(latestMetricValue(item), item.metric) ?? 0), 0.01);
+  combinedTrendChart.innerHTML = `
+    <div class="rose-chart">
+      ${series.map((item, index) => {
+    const score = valueForScore(latestMetricValue(item), item.metric) ?? 0;
+    const height = Math.max(16, Math.round((score / maxScore) * 180));
+    const color = ['#0f766e', '#2563eb', '#b45309', '#7c3aed', '#0e7490'][index % 5];
+    return `
+        <div class="rose-item">
+          <div class="rose-bar" style="height:${height}px;background:${color}"></div>
+          <strong>${escapeHtml(formatDashboardValue(latestMetricValue(item), item.metric))}</strong>
+          <span>${escapeHtml(item.metric.label)}</span>
+        </div>
+      `;
+  }).join('')}
+    </div>
+  `;
+}
+
+function renderTrendHeatmap(series) {
+  const header = series.map((item) => `<th>${escapeHtml(item.metric.label)}</th>`).join('');
+  const rows = weeksForYear().map((week) => {
+    const cells = series.map((item) => {
+      const value = item.values.find((point) => point.week === week)?.value ?? null;
+      const level = Math.round((valueForScore(value, item.metric) ?? 0) * 100);
+      return `<td><span class="heat-cell" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, item.metric))}</span></td>`;
+    }).join('');
+    return `<tr><th>${escapeHtml(week)}</th>${cells}</tr>`;
+  }).join('');
+  combinedTrendChart.innerHTML = `
+    <div class="heatmap-wrap trend-heatmap">
+      <table class="heatmap-table">
+        <thead><tr><th>周次</th>${header}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 function renderTrendCharts() {
   renderCombinedTrendChart();
 }
 
 function renderHeatmap() {
   const week = dashboardState.selectedWeek;
-  const metrics = availableMetrics(rowsForWeek(week));
-  const rows = rowsForWeek(week).sort((a, b) => {
+  const baseRows = rowsForWeek(week);
+  const metrics = heatmapMetricsForSelection(baseRows);
+  const rows = [...baseRows].sort((a, b) => {
+    if (dashboardState.heatmapSort === 'name') return a.institution.localeCompare(b.institution, 'zh-CN');
     const aScore = average(metrics.map((metric) => valueForScore(a.metrics[metric.id], metric)));
     const bScore = average(metrics.map((metric) => valueForScore(b.metrics[metric.id], metric)));
     return (aScore ?? 0) - (bScore ?? 0);
@@ -1204,10 +1409,15 @@ function renderSingleInstitution() {
   const keyCustomersMetric = metricById('keyCustomers');
   institutionHint.textContent = institution ? `单一机构 / ${week}` : '单一机构';
   const institutions = institutionNames();
+  const yearMetrics = availableMetrics(rowsForYear());
   institutionSelect.innerHTML = institutions.map((item) => (
     `<option value="${escapeHtml(item)}"${item === dashboardState.selectedInstitution ? ' selected' : ''}>${escapeHtml(item)}</option>`
   )).join('');
+  institutionMetricSelect.innerHTML = yearMetrics.map((metric) => (
+    `<option value="${metric.id}"${metric.id === dashboardState.selectedInstitutionMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
+  )).join('');
   institutionSelect.disabled = institutions.length <= 1;
+  institutionMetricSelect.disabled = yearMetrics.length <= 1;
 
   if (!row) {
     institutionKpis.innerHTML = [
@@ -1254,12 +1464,13 @@ function renderSingleInstitution() {
     `;
   }).join('') || '<div class="empty-state">暂无业务指标</div>';
 
+  const trendMetric = metricById(dashboardState.selectedInstitutionMetricId) || coverageMetric;
   renderComboChart(institutionTrendChart, [{
-    metric: coverageMetric,
-    title: `${institution} 综合业务覆盖率`,
-    values: dashboardState.weeks.map((itemWeek) => ({
+    metric: trendMetric,
+    title: `${institution} ${trendMetric.label}`,
+    values: weeksForYear().map((itemWeek) => ({
       week: itemWeek,
-      value: institutionMetricForWeek(itemWeek, institution, 'coverage'),
+      value: institutionMetricForWeek(itemWeek, institution, trendMetric.id),
     })),
   }], '暂无机构趋势数据');
 }
@@ -1285,16 +1496,22 @@ function renderDashboard() {
     institutionTrendChart.innerHTML = '<div class="empty-state">暂无机构趋势数据</div>';
     heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
     dashboardSource.textContent = '未载入数据';
+    yearSelect.innerHTML = '<option>暂无年份</option>';
     weekSelect.innerHTML = '<option>暂无数据</option>';
     rankingMetricSelect.innerHTML = '<option>暂无指标</option>';
     institutionSelect.innerHTML = '<option>暂无机构</option>';
+    institutionMetricSelect.innerHTML = '<option>暂无指标</option>';
+    trendMetricPicker.innerHTML = '<div class="empty-state">暂无可选指标</div>';
+    yearSelect.disabled = true;
     weekSelect.disabled = true;
     rankingMetricSelect.disabled = true;
     institutionSelect.disabled = true;
+    institutionMetricSelect.disabled = true;
     return;
   }
   ensureDashboardSelections();
   renderDashboardControls();
+  renderTrendMetricPicker();
   renderDashboardKpis();
   renderDashboardRanking();
   renderTrendCharts();
@@ -1304,18 +1521,36 @@ function renderDashboard() {
 
 function loadDashboardData(dataset) {
   const metrics = availableMetrics(dataset.rows);
-  const institutions = [...new Set(dataset.rows.map((row) => row.institution))]
+  const years = dataset.years?.length ? dataset.years : [...new Set(dataset.rows.map((row) => row.year))].sort();
+  const selectedYear = years.includes(dashboardState.selectedYear)
+    ? dashboardState.selectedYear
+    : years[years.length - 1] || '';
+  const institutions = [...new Set(dataset.rows.filter((row) => row.year === selectedYear).map((row) => row.institution))]
     .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const selectedYearWeeks = sortWeeks([...new Set(dataset.rows.filter((row) => row.year === selectedYear).map((row) => row.week))]);
   dashboardState = {
     rows: dataset.rows,
+    years,
     weeks: dataset.weeks,
-    selectedWeek: dataset.weeks[dataset.weeks.length - 1] || '',
+    selectedYear,
+    selectedWeek: selectedYearWeeks[selectedYearWeeks.length - 1] || dataset.weeks[dataset.weeks.length - 1] || '',
     selectedMetricId: metrics.some((metric) => metric.id === dashboardState.selectedMetricId)
       ? dashboardState.selectedMetricId
       : metrics[0]?.id || 'coverage',
+    overviewScope: dashboardState.overviewScope || 'all',
+    rankingScope: dashboardState.rankingScope || 'all',
+    trendChartType: dashboardState.trendChartType || 'combo',
+    selectedTrendMetricIds: dashboardState.selectedTrendMetricIds?.length
+      ? dashboardState.selectedTrendMetricIds
+      : ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
     selectedInstitution: institutions.includes(dashboardState.selectedInstitution)
       ? dashboardState.selectedInstitution
       : institutions[0] || '',
+    selectedInstitutionMetricId: metrics.some((metric) => metric.id === dashboardState.selectedInstitutionMetricId)
+      ? dashboardState.selectedInstitutionMetricId
+      : 'coverage',
+    heatmapMetricScope: dashboardState.heatmapMetricScope || 'core',
+    heatmapSort: dashboardState.heatmapSort || 'weak',
     rankExpanded: false,
     source: dataset.source,
   };
@@ -1339,6 +1574,19 @@ dashboardRankList.addEventListener('click', (event) => {
   renderDashboardRanking();
 });
 
+trendMetricPicker.addEventListener('change', (event) => {
+  if (!event.target.matches('input[type="checkbox"]')) return;
+  const selected = [...trendMetricPicker.querySelectorAll('input[type="checkbox"]:checked')]
+    .map((input) => input.value);
+  if (!selected.length) {
+    event.target.checked = true;
+    showToast('至少保留一个趋势指标', 'error');
+    return;
+  }
+  dashboardState.selectedTrendMetricIds = selected;
+  renderTrendCharts();
+});
+
 dashboardFileInput.addEventListener('change', async () => {
   try {
     const csvText = await readSelectedTableFile(dashboardFileInput);
@@ -1355,9 +1603,21 @@ sampleDashboardButton.addEventListener('click', () => {
   showToast('已生成模拟指标数据');
 });
 
+yearSelect.addEventListener('change', () => {
+  dashboardState.selectedYear = yearSelect.value;
+  dashboardState.selectedWeek = weeksForYear()[weeksForYear().length - 1] || '';
+  dashboardState.rankExpanded = false;
+  renderDashboard();
+});
+
 weekSelect.addEventListener('change', () => {
   dashboardState.selectedWeek = weekSelect.value;
   renderDashboard();
+});
+
+overviewScopeSelect.addEventListener('change', () => {
+  dashboardState.overviewScope = overviewScopeSelect.value;
+  renderDashboardKpis();
 });
 
 rankingMetricSelect.addEventListener('change', () => {
@@ -1365,9 +1625,35 @@ rankingMetricSelect.addEventListener('change', () => {
   renderDashboard();
 });
 
+rankingScopeSelect.addEventListener('change', () => {
+  dashboardState.rankingScope = rankingScopeSelect.value;
+  dashboardState.rankExpanded = false;
+  renderDashboardRanking();
+});
+
+trendChartTypeSelect.addEventListener('change', () => {
+  dashboardState.trendChartType = trendChartTypeSelect.value;
+  renderTrendCharts();
+});
+
 institutionSelect.addEventListener('change', () => {
   dashboardState.selectedInstitution = institutionSelect.value;
   renderDashboard();
+});
+
+institutionMetricSelect.addEventListener('change', () => {
+  dashboardState.selectedInstitutionMetricId = institutionMetricSelect.value;
+  renderSingleInstitution();
+});
+
+heatmapMetricScopeSelect.addEventListener('change', () => {
+  dashboardState.heatmapMetricScope = heatmapMetricScopeSelect.value;
+  renderHeatmap();
+});
+
+heatmapSortSelect.addEventListener('change', () => {
+  dashboardState.heatmapSort = heatmapSortSelect.value;
+  renderHeatmap();
 });
 
 resolvedFileInput.addEventListener('change', async () => {

@@ -143,12 +143,12 @@
           </div>
           <div class="dashboard-toolbar">
             <label class="field compact-field">
-              <span>周次</span>
-              <select id="weekSelect"></select>
+              <span>年份</span>
+              <select id="yearSelect"></select>
             </label>
             <label class="field compact-field">
-              <span>排行指标</span>
-              <select id="rankingMetricSelect"></select>
+              <span>周次</span>
+              <select id="weekSelect"></select>
             </label>
             <div class="source-note" id="dashboardSource">未载入数据</div>
           </div>
@@ -157,7 +157,16 @@
         <section class="panel panel-full" aria-labelledby="overviewTitle">
           <div class="panel-head">
             <h2 id="overviewTitle">重点客群综合业务渗透总体情况</h2>
-            <span class="quiet-label">按所选周次</span>
+            <div class="panel-tools">
+              <label class="field compact-field">
+                <span>细分</span>
+                <select id="overviewScopeSelect">
+                  <option value="all">全部机构</option>
+                  <option value="reached">达标机构</option>
+                  <option value="unreached">未达标机构</option>
+                </select>
+              </label>
+            </div>
           </div>
           <div class="metrics dashboard-kpis" id="dashboardKpis"></div>
         </section>
@@ -166,15 +175,40 @@
           <div class="panel">
             <div class="panel-head">
               <h2>机构表现排行</h2>
-              <span class="quiet-label" id="rankingHint">按综合业务覆盖率</span>
+              <div class="panel-tools">
+                <label class="field compact-field">
+                  <span>排行指标</span>
+                  <select id="rankingMetricSelect"></select>
+                </label>
+                <label class="field compact-field">
+                  <span>细分</span>
+                  <select id="rankingScopeSelect">
+                    <option value="all">全部机构</option>
+                    <option value="reached">达标机构</option>
+                    <option value="unreached">未达标机构</option>
+                  </select>
+                </label>
+              </div>
             </div>
+            <div class="quiet-label" id="rankingHint">按综合业务覆盖率</div>
             <div class="dashboard-rank-list" id="dashboardRankList"></div>
           </div>
           <div class="panel">
             <div class="panel-head">
               <h2>周度趋势</h2>
-              <span class="quiet-label">折柱同图展示</span>
+              <div class="panel-tools">
+                <label class="field compact-field">
+                  <span>图表</span>
+                  <select id="trendChartTypeSelect">
+                    <option value="combo">折柱同图</option>
+                    <option value="radar">雷达图</option>
+                    <option value="rose">玫瑰图</option>
+                    <option value="heatmap">热力图</option>
+                  </select>
+                </label>
+              </div>
             </div>
+            <div class="metric-picker" id="trendMetricPicker"></div>
             <div class="chart-card combined-trend-chart" id="combinedTrendChart"></div>
           </div>
         </section>
@@ -182,10 +216,16 @@
         <section class="panel panel-full">
           <div class="panel-head">
             <h2>单一机构分析</h2>
-            <label class="field compact-field institution-select-field">
-              <span id="institutionHint">单一机构</span>
-              <select id="institutionSelect"></select>
-            </label>
+            <div class="panel-tools">
+              <label class="field compact-field institution-select-field">
+                <span id="institutionHint">单一机构</span>
+                <select id="institutionSelect"></select>
+              </label>
+              <label class="field compact-field">
+                <span>趋势指标</span>
+                <select id="institutionMetricSelect"></select>
+              </label>
+            </div>
           </div>
           <div class="metrics institution-kpis" id="institutionKpis"></div>
           <div class="institution-layout">
@@ -203,8 +243,25 @@
         <section class="panel panel-full">
           <div class="panel-head">
             <h2>业务短板热力图</h2>
-            <span class="quiet-label" id="heatmapHint">按所选周次</span>
+            <div class="panel-tools">
+              <label class="field compact-field">
+                <span>指标范围</span>
+                <select id="heatmapMetricScopeSelect">
+                  <option value="core">核心业务</option>
+                  <option value="all">全部指标</option>
+                  <option value="contribution">贡献/成本</option>
+                </select>
+              </label>
+              <label class="field compact-field">
+                <span>排序</span>
+                <select id="heatmapSortSelect">
+                  <option value="weak">低分优先</option>
+                  <option value="name">机构名称</option>
+                </select>
+              </label>
+            </div>
           </div>
+          <div class="quiet-label" id="heatmapHint">按所选周次</div>
           <div class="heatmap-wrap" id="heatmap"></div>
         </section>
       </main>

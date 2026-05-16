@@ -360,6 +360,18 @@ textarea:focus {
   align-items: flex-start;
 }
 
+.panel-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.panel-tools .field {
+  min-width: 150px;
+}
+
 .dashboard-actions {
   display: flex;
   align-items: center;
@@ -553,6 +565,30 @@ textarea:focus {
   min-height: 430px;
 }
 
+.metric-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -2px 0 12px;
+}
+
+.metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.metric-chip input {
+  margin: 0;
+}
+
 .trend-svg {
   display: block;
   width: 100%;
@@ -610,6 +646,68 @@ textarea:focus {
 
 .combined-trend-svg {
   min-height: 360px;
+}
+
+.radar-svg {
+  min-height: 420px;
+}
+
+.radar-ring {
+  fill: none;
+  stroke: #e3e7ed;
+  stroke-width: 1;
+}
+
+.radar-area {
+  fill: rgba(15, 118, 110, 0.16);
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.radar-point {
+  fill: var(--accent);
+}
+
+.rose-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  align-items: end;
+  gap: 14px;
+  min-height: 300px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 20px;
+}
+
+.rose-item {
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.rose-bar {
+  width: min(56px, 70%);
+  border-radius: 999px 999px 8px 8px;
+}
+
+.rose-item strong {
+  font-size: 13px;
+}
+
+.rose-item span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend-heatmap .heatmap-table {
+  min-width: 720px;
 }
 
 .legend-bar {
@@ -968,9 +1066,14 @@ textarea:focus {
   }
 
   .dashboard-control .panel-head,
-  .dashboard-actions {
+  .dashboard-actions,
+  .panel-tools {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .panel-tools .field {
+    min-width: 0;
   }
 
   .dashboard-toolbar,
