@@ -28,6 +28,7 @@ const sampleDashboardButton = document.querySelector('#sampleDashboardButton');
 const yearSelect = document.querySelector('#yearSelect');
 const weekSelect = document.querySelector('#weekSelect');
 const regionSelect = document.querySelector('#regionSelect');
+const overviewRegionSelect = document.querySelector('#overviewRegionSelect');
 const overviewScopeSelect = document.querySelector('#overviewScopeSelect');
 const rankingMetricSelect = document.querySelector('#rankingMetricSelect');
 const rankingRegionSelect = document.querySelector('#rankingRegionSelect');
@@ -63,6 +64,7 @@ let dashboardState = {
   selectedYear: '',
   selectedWeek: '',
   selectedRegion: 'all',
+  overviewRegion: 'all',
   selectedMetricId: 'coverage',
   overviewScope: 'all',
   rankingScope: 'all',
@@ -92,6 +94,18 @@ const metricDefinitions = [
   { id: 'loanDepositRatio', label: '存贷比', aliases: ['存贷比', '重点客群贷款户存款年日均余额/重点客群贷款余额×100%'], kind: 'ratio', target: 1 },
 ];
 
+const internalMetricDefinitions = [
+  { id: '_coverageCount', aliases: ['综合业务覆盖', '求和项:综合业务覆盖'], kind: 'count' },
+  { id: '_billCount', aliases: ['电票结算覆盖', '电票覆盖'], kind: 'count' },
+  { id: '_acquiringCount', aliases: ['收单结算覆盖', '收单覆盖'], kind: 'count' },
+  { id: '_payrollCount', aliases: ['代发覆盖'], kind: 'count' },
+  { id: '_stateBusinessCount', aliases: ['国业覆盖'], kind: 'count' },
+  { id: '_settlementCount', aliases: ['结算活跃', '对公结算业务'], kind: 'count' },
+  { id: '_depositCount', aliases: ['存款有效', '对公存款覆盖'], kind: 'count' },
+  { id: '_highPenetrationCount', aliases: ['高渗透覆盖'], kind: 'count' },
+];
+
+const allMetricDefinitions = [...metricDefinitions, ...internalMetricDefinitions];
 const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
 const heatmapMetricGroups = {
   core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
@@ -878,7 +892,7 @@ function detectMetricColumns(labels, ignoredIndexes = [], defaultWeek = '本周'
   const periods = detectColumnPeriods(labels, currentWeek);
   labels.forEach((label, index) => {
     if (ignoredIndexes.includes(index)) return;
-    const metric = metricDefinitions.find((item) => headerMatchesAny(label, item.aliases));
+    const metric = allMetricDefinitions.find((item) => headerMatchesAny(label, item.aliases));
     if (!metric) return;
     const period = periods[index] || currentWeek;
     const phase = period === '年初' ? 'baseline' : 'current';
@@ -1215,8 +1229,16 @@ function regionOptionsForYear(year = dashboardState.selectedYear) {
     .sort((a, b) => a.localeCompare(b, 'zh-CN'));
 }
 
-function regionSelectControls() {
+function globalRegionSelectControls() {
   return [regionSelect, rankingRegionSelect, heatmapRegionSelect].filter(Boolean);
+}
+
+function overviewRowsForWeek(week) {
+  return dashboardState.rows.filter((row) => (
+    row.year === dashboardState.selectedYear
+    && row.week === week
+    && (dashboardState.overviewRegion === 'all' || (row.region || '未标区域') === dashboardState.overviewRegion)
+  ));
 }
 
 function weeksForYear(year = dashboardState.selectedYear) {
@@ -1241,6 +1263,26 @@ function metricAverageForWeek(week, metricId) {
 
 function institutionMetricForWeek(week, institution, metricId) {
   return rowsForWeek(week).find((row) => row.institution === institution)?.metrics[metricId] ?? null;
+}
+
+function sumMetric(rows, metricId) {
+  const values = rows.map((row) => row.metrics[metricId]).filter((value) => value != null && Number.isFinite(value));
+  if (!values.length) return null;
+  return values.reduce((sum, value) => sum + value, 0);
+}
+
+function weightedCoverage(rows) {
+  const coverageCount = sumMetric(rows, '_coverageCount');
+  const customers = sumMetric(rows, 'keyCustomers');
+  if (coverageCount != null && customers) return coverageCount / customers;
+  return average(rows.map((row) => row.metrics.coverage));
+}
+
+function weightedHighPenetration(rows) {
+  const highCount = sumMetric(rows, '_highPenetrationCount');
+  const coverageCount = sumMetric(rows, '_coverageCount');
+  if (highCount != null && coverageCount) return highCount / coverageCount;
+  return average(rows.map((row) => row.metrics.highPenetration));
 }
 
 function institutionNames() {
@@ -1307,7 +1349,7 @@ function renderDashboardControls() {
   weekSelect.innerHTML = yearWeeks.map((week) => (
     `<option value="${escapeHtml(week)}"${week === dashboardState.selectedWeek ? ' selected' : ''}>${escapeHtml(week)}</option>`
   )).join('');
-  regionSelectControls().forEach((select) => {
+  globalRegionSelectControls().forEach((select) => {
     select.innerHTML = [
       `<option value="all"${dashboardState.selectedRegion === 'all' ? ' selected' : ''}>全部区域</option>`,
       ...regions.map((region) => (
@@ -1317,6 +1359,16 @@ function renderDashboardControls() {
     select.value = dashboardState.selectedRegion;
     select.disabled = regions.length <= 1;
   });
+  if (overviewRegionSelect) {
+    overviewRegionSelect.innerHTML = [
+      `<option value="all"${dashboardState.overviewRegion === 'all' ? ' selected' : ''}>全部区域</option>`,
+      ...regions.map((region) => (
+        `<option value="${escapeHtml(region)}"${region === dashboardState.overviewRegion ? ' selected' : ''}>${escapeHtml(region)}</option>`
+      )),
+    ].join('');
+    overviewRegionSelect.value = dashboardState.overviewRegion;
+    overviewRegionSelect.disabled = regions.length <= 1;
+  }
   rankingMetricSelect.innerHTML = metrics.map((metric) => (
     `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
   )).join('');
@@ -1349,6 +1401,9 @@ function ensureDashboardSelections() {
   if (dashboardState.selectedRegion !== 'all' && !regions.includes(dashboardState.selectedRegion)) {
     dashboardState.selectedRegion = 'all';
   }
+  if (dashboardState.overviewRegion !== 'all' && !regions.includes(dashboardState.overviewRegion)) {
+    dashboardState.overviewRegion = 'all';
+  }
   const yearWeeks = weeksForYear();
   if (!yearWeeks.includes(dashboardState.selectedWeek)) {
     dashboardState.selectedWeek = yearWeeks[yearWeeks.length - 1] || '';
@@ -1370,24 +1425,19 @@ function ensureDashboardSelections() {
 function renderDashboardKpis() {
   const week = dashboardState.selectedWeek;
   const baseWeek = yearStartWeek();
-  const latestRows = filterRowsByScope(rowsForWeek(week), dashboardState.overviewScope);
+  const latestRows = filterRowsByScope(overviewRowsForWeek(week), dashboardState.overviewScope);
+  const baseRows = baseWeek ? filterRowsByScope(overviewRowsForWeek(baseWeek), dashboardState.overviewScope) : [];
   const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
   const keyCustomersMetric = metricById('keyCustomers');
   const highPenetrationMetric = metricById('highPenetration');
-  const coverage = metricAverageForWeek(week, 'coverage');
-  const baseCoverage = baseWeek ? metricAverageForWeek(baseWeek, 'coverage') : null;
+  const coverage = weightedCoverage(latestRows);
+  const baseCoverage = baseRows.length ? weightedCoverage(baseRows) : null;
   const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
-  const keyCustomers = latestRows
-    .map((row) => row.metrics.keyCustomers)
-    .filter((value) => value != null)
-    .reduce((sum, value) => sum + value, 0);
-  const baseKeyCustomers = baseWeek ? rowsForWeek(baseWeek)
-    .map((row) => row.metrics.keyCustomers)
-    .filter((value) => value != null)
-    .reduce((sum, value) => sum + value, 0) : null;
+  const keyCustomers = sumMetric(latestRows, 'keyCustomers') ?? 0;
+  const baseKeyCustomers = baseRows.length ? sumMetric(baseRows, 'keyCustomers') : null;
   const hasKeyCustomers = latestRows.some((row) => row.metrics.keyCustomers != null);
   const keyCustomersDelta = hasKeyCustomers && baseKeyCustomers != null ? keyCustomers - baseKeyCustomers : null;
-  const highPenetration = metricAverageForWeek(week, 'highPenetration');
+  const highPenetration = weightedHighPenetration(latestRows);
   const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
   const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
   const metricWeakness = availableMetrics(latestRows).map((metric) => ({
@@ -1895,10 +1945,14 @@ function renderDashboard() {
     dashboardSource.textContent = '未载入数据';
     yearSelect.innerHTML = '<option>暂无年份</option>';
     weekSelect.innerHTML = '<option>暂无数据</option>';
-    regionSelectControls().forEach((select) => {
+    globalRegionSelectControls().forEach((select) => {
       select.innerHTML = '<option>全部区域</option>';
       select.disabled = true;
     });
+    if (overviewRegionSelect) {
+      overviewRegionSelect.innerHTML = '<option>全部区域</option>';
+      overviewRegionSelect.disabled = true;
+    }
     rankingMetricSelect.innerHTML = '<option>暂无指标</option>';
     institutionSelect.innerHTML = '<option>暂无机构</option>';
     institutionMetricSelect.innerHTML = '<option>暂无指标</option>';
@@ -1940,6 +1994,9 @@ function loadDashboardData(dataset) {
     selectedYear,
     selectedWeek: selectedYearWeeks[selectedYearWeeks.length - 1] || dataset.weeks[dataset.weeks.length - 1] || '',
     selectedRegion,
+    overviewRegion: dashboardState.overviewRegion === 'all' || regions.includes(dashboardState.overviewRegion)
+      ? dashboardState.overviewRegion
+      : 'all',
     selectedMetricId: metrics.some((metric) => metric.id === dashboardState.selectedMetricId)
       ? dashboardState.selectedMetricId
       : metrics[0]?.id || 'coverage',
@@ -2027,8 +2084,13 @@ function handleRegionSelectChange(event) {
   renderDashboard();
 }
 
-regionSelectControls().forEach((select) => {
+globalRegionSelectControls().forEach((select) => {
   select.addEventListener('change', handleRegionSelectChange);
+});
+
+overviewRegionSelect?.addEventListener('change', () => {
+  dashboardState.overviewRegion = overviewRegionSelect.value;
+  renderDashboardKpis();
 });
 
 overviewScopeSelect.addEventListener('change', () => {

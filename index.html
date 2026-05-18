@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260518-region-map">
+    <link rel="stylesheet" href="styles.css?v=20260518-overview-kpi">
   </head>
   <body>
     <header class="topbar">
@@ -163,6 +163,10 @@
             <h2 id="overviewTitle">重点客群综合业务渗透总体情况</h2>
             <div class="panel-tools">
               <label class="field compact-field">
+                <span>区域类型</span>
+                <select id="overviewRegionSelect"></select>
+              </label>
+              <label class="field compact-field">
                 <span>细分</span>
                 <select id="overviewScopeSelect">
                   <option value="all">全部机构</option>
@@ -282,6 +286,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260518-region-map" type="module"></script>
+    <script src="app.js?v=20260518-overview-kpi" type="module"></script>
   </body>
 </html>
