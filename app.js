@@ -73,7 +73,7 @@ let dashboardState = {
   selectedInstitution: '',
   selectedInstitutionMetricId: 'coverage',
   heatmapMetricScope: 'core',
-  heatmapSort: 'strong',
+  heatmapSort: 'customers',
   rankExpanded: false,
   source: '',
 };
@@ -1801,7 +1801,12 @@ function renderTrendCharts() {
 function renderHeatmap() {
   const week = dashboardState.selectedWeek;
   const baseRows = rowsForWeek(week);
+  const keyCustomersMetric = metricById('keyCustomers');
   const metrics = heatmapMetricsForSelection(baseRows);
+  const displayMetrics = [
+    keyCustomersMetric,
+    ...metrics.filter((metric) => metric.id !== 'keyCustomers'),
+  ].filter((metric) => metric && baseRows.some((row) => row.metrics[metric.id] != null));
   const regionScoreAverages = new Map();
   const allWeekRows = dashboardState.rows.filter((row) => row.year === dashboardState.selectedYear && row.week === week);
   const averageScoreForRegionMetric = (region, metric) => {
@@ -1814,6 +1819,10 @@ function renderHeatmap() {
   };
   const rows = [...baseRows].sort((a, b) => {
     if (dashboardState.heatmapSort === 'name') return a.institution.localeCompare(b.institution, 'zh-CN');
+    if (dashboardState.heatmapSort === 'customers') {
+      return (b.metrics.keyCustomers ?? -Infinity) - (a.metrics.keyCustomers ?? -Infinity)
+        || a.institution.localeCompare(b.institution, 'zh-CN');
+    }
     const aCoverage = a.metrics.coverage ?? -Infinity;
     const bCoverage = b.metrics.coverage ?? -Infinity;
     if (dashboardState.heatmapSort === 'weak') {
@@ -1821,20 +1830,23 @@ function renderHeatmap() {
     }
     return bCoverage - aCoverage || a.institution.localeCompare(b.institution, 'zh-CN');
   });
-  heatmapHint.textContent = `${week}，按综合业务覆盖率${dashboardState.heatmapSort === 'weak' ? '升序' : '降序'}排列，圆点标出低于所属区域类型均值的指标`;
-  if (!rows.length || !metrics.length) {
+  const sortLabel = dashboardState.heatmapSort === 'customers'
+    ? '重点客群数量降序'
+    : `综合业务覆盖率${dashboardState.heatmapSort === 'weak' ? '升序' : '降序'}`;
+  heatmapHint.textContent = `${week}，按${sortLabel}排列，圆点标出低于所属区域类型均值的指标`;
+  if (!rows.length || !displayMetrics.length) {
     heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
     return;
   }
-  const header = metrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('');
+  const header = displayMetrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('');
   const body = rows.map((row) => {
     const region = row.region || '未标区域';
-    const cells = metrics.map((metric) => {
+    const cells = displayMetrics.map((metric) => {
       const value = row.metrics[metric.id];
       const score = valueForScore(value, metric);
       const level = score == null ? 0 : Math.round(score * 100);
       const regionAverageScore = averageScoreForRegionMetric(region, metric);
-      const isWeakness = score != null && regionAverageScore != null && score < regionAverageScore;
+      const isWeakness = metric.id !== 'keyCustomers' && score != null && regionAverageScore != null && score < regionAverageScore;
       return `<td><span class="heat-cell ${isWeakness ? 'is-row-low' : ''}" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, metric))}</span></td>`;
     }).join('');
     return `<tr><th>${escapeHtml(row.institution)}</th>${cells}</tr>`;
@@ -2013,7 +2025,7 @@ function loadDashboardData(dataset) {
       ? dashboardState.selectedInstitutionMetricId
       : 'coverage',
     heatmapMetricScope: dashboardState.heatmapMetricScope || 'core',
-    heatmapSort: dashboardState.heatmapSort || 'strong',
+    heatmapSort: dashboardState.heatmapSort || 'customers',
     rankExpanded: false,
     source: dataset.source,
   };
