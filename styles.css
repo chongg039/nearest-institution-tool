@@ -418,8 +418,6 @@ textarea:focus {
 .dashboard-rank-list {
   display: grid;
   gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 2px;
 }
 
 .rank-header,
@@ -428,7 +426,6 @@ textarea:focus {
   grid-template-columns: 50px minmax(86px, 126px) minmax(94px, 1fr) 76px 78px 86px;
   align-items: center;
   gap: 10px;
-  min-width: 620px;
 }
 
 .rank-header {
@@ -1137,6 +1134,19 @@ textarea:focus {
 
   .dashboard-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-rank-row {
+    grid-template-columns: 48px minmax(80px, 1fr) 66px 58px 50px;
+  }
+
+  .rank-header {
+    display: none;
+  }
+
+  .dashboard-rank-row .rank-track,
+  .dashboard-rank-row .rank-delta {
+    display: none;
   }
 
   .rank-key-customers {
