@@ -77,17 +77,17 @@ let dashboardState = {
 };
 
 const metricDefinitions = [
-  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标'], kind: 'rate', target: 0.65 },
-  { id: 'bill', label: '电票覆盖率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率'], kind: 'rate', target: 0.55 },
+  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标', '年初覆盖率'], kind: 'rate', target: 0.65 },
+  { id: 'bill', label: '电票覆盖率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率', '电票结算覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率', '收单覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率', '代发覆盖率'], kind: 'rate', target: 0.5 },
   { id: 'stateBusiness', label: '国业覆盖率', aliases: ['国业业务穿透率', '国业业务渗透率', '国业覆盖率'], kind: 'rate', target: 0.45 },
-  { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比'], kind: 'rate', target: 0.35 },
+  { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比', '高渗透覆盖率'], kind: 'rate', target: 0.35 },
   { id: 'settlement', label: '结算活跃率', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率', '结算活跃率'], kind: 'rate', target: 0.55 },
   { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
   { id: 'contribution', label: '存款有效率', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
   { id: 'interest', label: '综合付息率', aliases: ['综合付息率'], kind: 'inverseRate', target: 0.018 },
-  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数'], kind: 'count', target: 50 },
+  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数', '客户数', '计数项:客户编号'], kind: 'count', target: 50 },
   { id: 'loanCustomers', label: '贷款户数量', aliases: ['贷款户数量', '贷款户数', '重点客群贷款余额>0户数', '贷款余额>0户数'], kind: 'count', target: 50 },
   { id: 'loanDepositRatio', label: '存贷比', aliases: ['存贷比', '重点客群贷款户存款年日均余额/重点客群贷款余额×100%'], kind: 'ratio', target: 1 },
 ];
@@ -238,6 +238,23 @@ async function readSelectedTableFile(input) {
   if (!firstSheetName) throw new Error('Excel 文件没有可读取的工作表');
   const sheet = workbook.Sheets[firstSheetName];
   return window.XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+}
+
+async function readSelectedWorkbookTables(input) {
+  const file = input.files?.[0];
+  if (!file) return [];
+  if (isCsvFile(file.name, file.type)) {
+    return [{ csvText: await file.text(), sheetName: '', fileName: file.name }];
+  }
+  if (!isExcelFile(file.name)) throw new Error('仅支持 CSV、XLS、XLSX 文件');
+  if (!window.XLSX) throw new Error('Excel 解析组件加载失败，请刷新页面后重试');
+  const workbook = window.XLSX.read(await file.arrayBuffer(), { type: 'array' });
+  if (!workbook.SheetNames.length) throw new Error('Excel 文件没有可读取的工作表');
+  return workbook.SheetNames.map((sheetName) => ({
+    csvText: window.XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName], { blankrows: false }),
+    sheetName,
+    fileName: file.name,
+  })).filter((item) => item.csvText.trim());
 }
 
 function jsonp(path, params, timeoutMs = 15000) {
@@ -819,22 +836,37 @@ function maxColumnCount(rows) {
   return rows.reduce((max, row) => Math.max(max, row.length), 0);
 }
 
-function detectMetricColumns(labels, ignoredIndexes = []) {
-  const metricColumns = [];
-  const used = new Set();
-  const periods = detectColumnPeriods(labels, currentWeekFromLabels(labels));
+function scoreMetricHeader(label, metric) {
+  const text = normalizeHeaderName(label);
+  let score = 0;
+  if (metric.kind === 'count') {
+    if (/(客户数|户数|数量|计数项)/.test(text)) score += 40;
+  } else if (/(率|占比|存贷比|付息率)/.test(text)) {
+    score += 40;
+  }
+  if (metric.aliases.some((alias) => text === normalizeHeaderName(alias))) score += 10;
+  if (metric.kind !== 'count' && !/(率|占比|存贷比|付息率)/.test(text)) score -= 20;
+  return score;
+}
+
+function detectMetricColumns(labels, ignoredIndexes = [], defaultWeek = '本周') {
+  const bestByMetricPeriod = new Map();
+  const currentWeek = currentWeekFromLabels(labels, defaultWeek);
+  const periods = detectColumnPeriods(labels, currentWeek);
   labels.forEach((label, index) => {
     if (ignoredIndexes.includes(index)) return;
     const metric = metricDefinitions.find((item) => headerMatchesAny(label, item.aliases));
     if (!metric) return;
-    const period = periods[index] || currentWeekFromLabels(labels);
+    const period = periods[index] || currentWeek;
     const phase = period === '年初' ? 'baseline' : 'current';
     const key = `${metric.id}:${period}`;
-    if (used.has(key)) return;
-    used.add(key);
-    metricColumns.push({ metric, index, phase, period });
+    const candidate = { metric, index, phase, period, score: scoreMetricHeader(label, metric) };
+    const previous = bestByMetricPeriod.get(key);
+    if (!previous || candidate.score > previous.score) {
+      bestByMetricPeriod.set(key, candidate);
+    }
   });
-  return metricColumns;
+  return [...bestByMetricPeriod.values()].map(({ metric, index, phase, period }) => ({ metric, index, phase, period }));
 }
 
 function parsePeriodLabel(value) {
@@ -895,6 +927,45 @@ function currentWeekFromLabels(labels, fallback = '本周') {
 function fallbackCurrentWeekForRow(explicitWeek, detectedPeriod, currentWeek) {
   if (detectedPeriod === '年初') return '年初';
   return explicitWeek || detectedPeriod || currentWeek;
+}
+
+function compactDateFromText(text, preferredMonth = null) {
+  const matches = [...String(text || '').matchAll(/(?:^|[^\d])(\d{1,2})(\d{2})(?=\D|$)/g)];
+  for (const match of matches) {
+    const month = Number(match[1]);
+    const day = Number(match[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && (preferredMonth == null || month === preferredMonth)) {
+      return { label: `${month}月${day}日`, month, day };
+    }
+  }
+  return null;
+}
+
+function yearFromText(text) {
+  const year = String(text || '').match(/(?:19|20)\d{2}/)?.[0];
+  return year ? Number(year) : null;
+}
+
+function inferDashboardTableDefaults(table, comparisonYear = null) {
+  const sheetName = table.sheetName || '';
+  const fileName = table.fileName || '';
+  const sheetYear = yearFromText(sheetName);
+  if (/年底/.test(sheetName)) {
+    return { defaultWeek: '年初', defaultYear: String(comparisonYear || (sheetYear ? sheetYear + 1 : '')) };
+  }
+  if (/年初/.test(sheetName)) {
+    return { defaultWeek: '年初', defaultYear: String(comparisonYear || sheetYear || '') };
+  }
+  const sheetPeriod = parsePeriodLabel(sheetName);
+  if (sheetPeriod?.kind === 'date') {
+    return { defaultWeek: sheetPeriod.label, defaultYear: String(sheetYear || comparisonYear || '') };
+  }
+  if (sheetPeriod?.kind === 'month') {
+    const exactDate = compactDateFromText(fileName, sheetPeriod.month);
+    return { defaultWeek: exactDate?.label || sheetPeriod.label, defaultYear: String(sheetYear || comparisonYear || '') };
+  }
+  const fileDate = compactDateFromText(fileName);
+  return { defaultWeek: fileDate?.label || '', defaultYear: String(sheetYear || comparisonYear || '') };
 }
 
 function parseDashboardNumber(value, metric) {
@@ -961,7 +1032,7 @@ function sortWeeks(weeks) {
   });
 }
 
-function parseDashboardCsv(csvText, source = '上传文件') {
+function parseDashboardCsv(csvText, source = '上传文件', options = {}) {
   const rows = parseCsv(csvText).filter((row) => row.some((cell) => String(cell || '').trim()));
   if (rows.length < 2) throw new Error('指标文件没有数据行');
   const { rowIndex: headerRowIndex, index: institutionIndex } = detectDashboardHeader(rows);
@@ -973,9 +1044,13 @@ function parseDashboardCsv(csvText, source = '上传文件') {
   const yearIndex = findExactHeaderColumn(labels, ['年份', '年', '年度']);
   const weekIndex = findExactHeaderColumn(labels, ['周次', '周', '统计周', '日期']);
   const regionIndex = findLooseHeaderColumn(labels, ['区域类型', '区域', '地区']);
-  const metricColumns = detectMetricColumns(labels, [institutionIndex, yearIndex, weekIndex, regionIndex].filter((index) => index !== -1));
+  const currentWeek = currentWeekFromLabels(labels, options.defaultWeek || '本周');
+  const metricColumns = detectMetricColumns(
+    labels,
+    [institutionIndex, yearIndex, weekIndex, regionIndex].filter((index) => index !== -1),
+    currentWeek,
+  );
   if (!metricColumns.length) throw new Error('指标文件没有可识别的指标列');
-  const currentWeek = currentWeekFromLabels(labels);
 
   let activeRegion = '';
   const parsedRows = rows.slice(dataStartIndex).flatMap((row) => {
@@ -997,7 +1072,7 @@ function parseDashboardCsv(csvText, source = '上传文件') {
       metricsByWeek.set(metricWeek, target);
     }
     const explicitYear = yearIndex >= 0 ? row[yearIndex] : '';
-    const year = inferYear(`${source} ${currentWeek}`, explicitYear);
+    const year = options.defaultYear || inferYear(`${source} ${currentWeek}`, explicitYear);
     return [...metricsByWeek.entries()].map(([week, metrics]) => ({ year, week, institution, region, metrics }));
   });
 
@@ -1007,6 +1082,46 @@ function parseDashboardCsv(csvText, source = '上传文件') {
     years: [...new Set(parsedRows.map((row) => row.year))].sort(),
     weeks: sortWeeks([...new Set(parsedRows.map((row) => row.week))]),
     source,
+  };
+}
+
+function inferDashboardComparisonYear(tables) {
+  const currentSheetYears = tables
+    .map((table) => table.sheetName || '')
+    .filter((name) => !/年初|年底/.test(name))
+    .map(yearFromText)
+    .filter(Boolean);
+  if (currentSheetYears.length) return Math.max(...currentSheetYears);
+  const years = tables.map((table) => yearFromText(table.sheetName || table.fileName)).filter(Boolean);
+  return years.length ? Math.max(...years) : null;
+}
+
+function parseDashboardTables(tables, fileName = '') {
+  if (!tables.length) throw new Error('指标文件没有可读取的数据表');
+  const comparisonYear = inferDashboardComparisonYear(tables);
+  const parsedParts = [];
+  const errors = [];
+  for (const table of tables) {
+    const source = table.sheetName ? `上传文件：${fileName || table.fileName} / ${table.sheetName}` : `上传文件：${fileName || table.fileName || ''}`;
+    try {
+      parsedParts.push(parseDashboardCsv(
+        table.csvText,
+        source,
+        inferDashboardTableDefaults(table, comparisonYear),
+      ));
+    } catch (error) {
+      errors.push(`${table.sheetName || 'CSV'}：${error.message}`);
+    }
+  }
+  const rows = parsedParts.flatMap((part) => part.rows);
+  if (!rows.length) throw new Error(errors[0] || '指标文件没有有效机构数据');
+  return {
+    rows,
+    years: [...new Set(rows.map((row) => row.year))].sort(),
+    weeks: sortWeeks([...new Set(rows.map((row) => row.week))]),
+    source: parsedParts.length > 1
+      ? `上传文件：${fileName || tables[0]?.fileName || ''}（已合并 ${parsedParts.length} 个工作表）`
+      : parsedParts[0].source,
   };
 }
 
@@ -1846,9 +1961,9 @@ trendMetricPicker.addEventListener('change', (event) => {
 
 dashboardFileInput.addEventListener('change', async () => {
   try {
-    const csvText = await readSelectedTableFile(dashboardFileInput);
-    if (!csvText) return;
-    loadDashboardData(parseDashboardCsv(csvText, `上传文件：${dashboardFileInput.files?.[0]?.name || ''}`));
+    const tables = await readSelectedWorkbookTables(dashboardFileInput);
+    if (!tables.length) return;
+    loadDashboardData(parseDashboardTables(tables, dashboardFileInput.files?.[0]?.name || ''));
     showToast('指标数据已载入');
   } catch (error) {
     showToast(error.message, 'error');
