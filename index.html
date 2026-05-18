@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=20260517-heatmap-sort">
   </head>
   <body>
     <header class="topbar">
@@ -150,6 +150,10 @@
               <span>周次</span>
               <select id="weekSelect"></select>
             </label>
+            <label class="field compact-field">
+              <span>区域类型</span>
+              <select id="regionSelect"></select>
+            </label>
             <div class="source-note" id="dashboardSource">未载入数据</div>
           </div>
         </section>
@@ -181,6 +185,10 @@
                   <select id="rankingMetricSelect"></select>
                 </label>
                 <label class="field compact-field">
+                  <span>区域类型</span>
+                  <select id="rankingRegionSelect"></select>
+                </label>
+                <label class="field compact-field">
                   <span>细分</span>
                   <select id="rankingScopeSelect">
                     <option value="all">全部机构</option>
@@ -200,7 +208,7 @@
                 <label class="field compact-field">
                   <span>图表</span>
                   <select id="trendChartTypeSelect">
-                    <option value="combo">折柱同图</option>
+                    <option value="combo">趋势总览</option>
                     <option value="radar">雷达图</option>
                     <option value="rose">玫瑰图</option>
                     <option value="heatmap">热力图</option>
@@ -253,9 +261,14 @@
                 </select>
               </label>
               <label class="field compact-field">
+                <span>区域类型</span>
+                <select id="heatmapRegionSelect"></select>
+              </label>
+              <label class="field compact-field">
                 <span>排序</span>
                 <select id="heatmapSortSelect">
                   <option value="weak">低分优先</option>
+                  <option value="strong">高分优先</option>
                   <option value="name">机构名称</option>
                 </select>
               </label>
@@ -269,6 +282,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js" type="module"></script>
+    <script src="app.js?v=20260517-heatmap-sort" type="module"></script>
   </body>
 </html>

@@ -339,8 +339,9 @@ textarea:focus {
 
 .metrics strong {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .metrics span {
@@ -380,7 +381,7 @@ textarea:focus {
 
 .dashboard-toolbar {
   display: grid;
-  grid-template-columns: minmax(150px, 190px) minmax(180px, 240px) minmax(0, 1fr);
+  grid-template-columns: minmax(130px, 170px) minmax(160px, 210px) minmax(150px, 210px) minmax(0, 1fr);
   align-items: end;
   gap: 14px;
 }
@@ -422,7 +423,7 @@ textarea:focus {
 .rank-header,
 .dashboard-rank-row {
   display: grid;
-  grid-template-columns: 50px minmax(86px, 126px) minmax(94px, 1fr) 76px 74px 64px;
+  grid-template-columns: 50px minmax(86px, 126px) minmax(94px, 1fr) 76px 74px 96px;
   align-items: center;
   gap: 10px;
 }
@@ -562,7 +563,7 @@ textarea:focus {
 }
 
 .combined-trend-chart {
-  min-height: 430px;
+  min-height: 470px;
 }
 
 .metric-picker {
@@ -646,6 +647,55 @@ textarea:focus {
 
 .combined-trend-svg {
   min-height: 360px;
+}
+
+.trend-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.trend-summary-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--series-color);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 11px;
+}
+
+.trend-summary-card span,
+.trend-summary-card em {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trend-summary-card strong {
+  display: block;
+  margin: 5px 0 3px;
+  font-size: 17px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.trend-grid-line {
+  stroke: #edf0f3;
+  stroke-width: 1;
+}
+
+.trend-axis-title {
+  fill: var(--muted);
+  font-weight: 650;
+}
+
+.trend-point {
+  stroke: #fff;
+  stroke-width: 2;
 }
 
 .radar-svg {

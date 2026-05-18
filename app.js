@@ -27,14 +27,17 @@ const dashboardFileInput = document.querySelector('#dashboardFile');
 const sampleDashboardButton = document.querySelector('#sampleDashboardButton');
 const yearSelect = document.querySelector('#yearSelect');
 const weekSelect = document.querySelector('#weekSelect');
+const regionSelect = document.querySelector('#regionSelect');
 const overviewScopeSelect = document.querySelector('#overviewScopeSelect');
 const rankingMetricSelect = document.querySelector('#rankingMetricSelect');
+const rankingRegionSelect = document.querySelector('#rankingRegionSelect');
 const rankingScopeSelect = document.querySelector('#rankingScopeSelect');
 const trendChartTypeSelect = document.querySelector('#trendChartTypeSelect');
 const trendMetricPicker = document.querySelector('#trendMetricPicker');
 const institutionSelect = document.querySelector('#institutionSelect');
 const institutionMetricSelect = document.querySelector('#institutionMetricSelect');
 const heatmapMetricScopeSelect = document.querySelector('#heatmapMetricScopeSelect');
+const heatmapRegionSelect = document.querySelector('#heatmapRegionSelect');
 const heatmapSortSelect = document.querySelector('#heatmapSortSelect');
 const dashboardSource = document.querySelector('#dashboardSource');
 const dashboardKpis = document.querySelector('#dashboardKpis');
@@ -59,6 +62,7 @@ let dashboardState = {
   weeks: [],
   selectedYear: '',
   selectedWeek: '',
+  selectedRegion: 'all',
   selectedMetricId: 'coverage',
   overviewScope: 'all',
   rankingScope: 'all',
@@ -74,23 +78,24 @@ let dashboardState = {
 
 const metricDefinitions = [
   { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标'], kind: 'rate', target: 0.65 },
-  { id: 'bill', label: '电票业务穿透率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率'], kind: 'rate', target: 0.55 },
+  { id: 'bill', label: '电票覆盖率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率', '收单覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率', '代发覆盖率'], kind: 'rate', target: 0.5 },
-  { id: 'stateBusiness', label: '国业业务穿透率', aliases: ['国业业务穿透率', '国业业务渗透率', '国业覆盖率'], kind: 'rate', target: 0.45 },
+  { id: 'stateBusiness', label: '国业覆盖率', aliases: ['国业业务穿透率', '国业业务渗透率', '国业覆盖率'], kind: 'rate', target: 0.45 },
   { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比'], kind: 'rate', target: 0.35 },
-  { id: 'settlement', label: '对公结算业务', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率', '结算活跃率'], kind: 'rate', target: 0.55 },
+  { id: 'settlement', label: '结算活跃率', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率', '结算活跃率'], kind: 'rate', target: 0.55 },
   { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
-  { id: 'contribution', label: '综合业务备款贡献度', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
+  { id: 'contribution', label: '存款有效率', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
   { id: 'interest', label: '综合付息率', aliases: ['综合付息率'], kind: 'inverseRate', target: 0.018 },
   { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数'], kind: 'count', target: 50 },
-  { id: 'loanCustomers', label: '贷款户数量', aliases: ['贷款户数量', '贷款户数'], kind: 'count', target: 50 },
+  { id: 'loanCustomers', label: '贷款户数量', aliases: ['贷款户数量', '贷款户数', '重点客群贷款余额>0户数', '贷款余额>0户数'], kind: 'count', target: 50 },
+  { id: 'loanDepositRatio', label: '存贷比', aliases: ['存贷比', '重点客群贷款户存款年日均余额/重点客群贷款余额×100%'], kind: 'ratio', target: 1 },
 ];
 
 const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
 const heatmapMetricGroups = {
   core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
-  contribution: ['settlement', 'loan', 'contribution', 'interest'],
+  contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
 };
 
 function showToast(message, type = 'info') {
@@ -758,9 +763,18 @@ function findExactHeaderColumn(labels, names) {
   return -1;
 }
 
+function findLooseHeaderColumn(labels, names) {
+  return labels.findIndex((label) => headerMatchesAny(label, names));
+}
+
 function isFormulaHeaderCell(value) {
   const text = String(value || '').trim();
-  return Boolean(text && /[×*/=]/.test(text));
+  return Boolean(text && (
+    /[×*/=<>≥≤＞＜]/.test(text)
+    || /客户数\/重点客群总数/.test(text)
+    || /覆盖客户数/.test(text)
+    || text.length > 18
+  ));
 }
 
 function dashboardColumnLabel(headerRows, columnIndex) {
@@ -808,30 +822,79 @@ function maxColumnCount(rows) {
 function detectMetricColumns(labels, ignoredIndexes = []) {
   const metricColumns = [];
   const used = new Set();
+  const periods = detectColumnPeriods(labels, currentWeekFromLabels(labels));
   labels.forEach((label, index) => {
     if (ignoredIndexes.includes(index)) return;
     const metric = metricDefinitions.find((item) => headerMatchesAny(label, item.aliases));
     if (!metric) return;
-    const phase = /年初/.test(String(label)) ? 'baseline' : 'current';
-    const key = `${metric.id}:${phase}`;
+    const period = periods[index] || currentWeekFromLabels(labels);
+    const phase = period === '年初' ? 'baseline' : 'current';
+    const key = `${metric.id}:${period}`;
     if (used.has(key)) return;
     used.add(key);
-    metricColumns.push({ metric, index, phase });
+    metricColumns.push({ metric, index, phase, period });
   });
   return metricColumns;
 }
 
-function currentWeekFromLabels(labels, fallback = '本周') {
-  const joined = labels.join(' ');
-  const compactDate = joined.match(/(?:^|[^\d])(\d{1,2})(\d{2})(?=\D)/);
-  if (compactDate) {
-    const month = Number(compactDate[1]);
-    const day = Number(compactDate[2]);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return `${month}月${day}日`;
+function parsePeriodLabel(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  if (/年初/.test(text)) return { kind: 'baseline', label: '年初' };
+  const explicit = text.match(/(\d{1,2})月(\d{1,2})日/);
+  if (explicit) {
+    const month = Number(explicit[1]);
+    const day = Number(explicit[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { kind: 'date', label: `${month}月${day}日`, month };
+    }
   }
-  const monthText = joined.match(/(\d{1,2})月/);
-  if (monthText) return `${Number(monthText[1])}月`;
-  return fallback;
+  const compact = text.match(/(?:^|[^\d])(\d{1,2})(\d{2})(?=\D|$)/);
+  if (compact) {
+    const month = Number(compact[1]);
+    const day = Number(compact[2]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { kind: 'date', label: `${month}月${day}日`, month };
+    }
+  }
+  const monthOnly = text.match(/(\d{1,2})月/);
+  if (monthOnly) {
+    const month = Number(monthOnly[1]);
+    if (month >= 1 && month <= 12) return { kind: 'month', label: `${month}月`, month };
+  }
+  return null;
+}
+
+function detectColumnPeriods(labels, fallback = '本周') {
+  const raw = labels.map(parsePeriodLabel);
+  return raw.map((period, index) => {
+    if (!period) {
+      const inherited = raw.slice(0, index).reverse().find((item) => item?.kind === 'date' || item?.kind === 'baseline');
+      return inherited?.label || fallback;
+    }
+    if (period.kind !== 'month') return period.label;
+    const leftExact = raw
+      .slice(0, index)
+      .reverse()
+      .find((item) => item?.kind === 'date' && item.month === period.month);
+    const rightExact = raw
+      .slice(index + 1)
+      .find((item) => item?.kind === 'date' && item.month === period.month);
+    return leftExact?.label || rightExact?.label || period.label;
+  });
+}
+
+function currentWeekFromLabels(labels, fallback = '本周') {
+  const periods = labels
+    .map(parsePeriodLabel)
+    .filter((period) => period && period.kind !== 'baseline');
+  const exact = periods.find((period) => period.kind === 'date');
+  return exact?.label || periods[0]?.label || fallback;
+}
+
+function fallbackCurrentWeekForRow(explicitWeek, detectedPeriod, currentWeek) {
+  if (detectedPeriod === '年初') return '年初';
+  return explicitWeek || detectedPeriod || currentWeek;
 }
 
 function parseDashboardNumber(value, metric) {
@@ -842,6 +905,10 @@ function parseDashboardNumber(value, metric) {
   if (!normalized) return null;
   let number = Number(normalized);
   if (!Number.isFinite(number)) return null;
+  if (metric.kind === 'ratio') {
+    if (isPercent || number > 10) number /= 100;
+    return number;
+  }
   if (metric.kind !== 'count' && (isPercent || number > 1)) number /= 100;
   return number;
 }
@@ -849,6 +916,7 @@ function parseDashboardNumber(value, metric) {
 function formatDashboardValue(value, metric) {
   if (value == null || Number.isNaN(Number(value))) return '-';
   if (metric.kind === 'count') return `${Math.round(value)}`;
+  if (metric.kind === 'ratio') return `${(value * 100).toFixed(1)}%`;
   if (metric.id === 'interest') return `${(value * 100).toFixed(2)}%`;
   return `${(value * 100).toFixed(1)}%`;
 }
@@ -856,13 +924,15 @@ function formatDashboardValue(value, metric) {
 function formatDelta(value, metric) {
   if (value == null || Number.isNaN(Number(value))) return '-';
   if (metric.kind === 'count') return `${value >= 0 ? '+' : ''}${Math.round(value)}`;
-  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}pct`;
+  if (metric.kind === 'ratio') return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
+  return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`;
 }
 
 function valueForScore(value, metric) {
   if (value == null) return null;
   if (metric.kind === 'inverseRate') return Math.max(0, 1 - (value / Math.max(metric.target * 2, 0.01)));
   if (metric.kind === 'count') return Math.min(1, value / metric.target);
+  if (metric.kind === 'ratio') return Math.min(1, value / metric.target);
   return Math.max(0, Math.min(1, value));
 }
 
@@ -902,33 +972,33 @@ function parseDashboardCsv(csvText, source = '上传文件') {
   const labels = Array.from({ length: columnCount }, (_, index) => dashboardColumnLabel(headerRows, index));
   const yearIndex = findExactHeaderColumn(labels, ['年份', '年', '年度']);
   const weekIndex = findExactHeaderColumn(labels, ['周次', '周', '统计周', '日期']);
-  const metricColumns = detectMetricColumns(labels, [institutionIndex, yearIndex, weekIndex].filter((index) => index !== -1));
+  const regionIndex = findLooseHeaderColumn(labels, ['区域类型', '区域', '地区']);
+  const metricColumns = detectMetricColumns(labels, [institutionIndex, yearIndex, weekIndex, regionIndex].filter((index) => index !== -1));
   if (!metricColumns.length) throw new Error('指标文件没有可识别的指标列');
   const currentWeek = currentWeekFromLabels(labels);
 
+  let activeRegion = '';
   const parsedRows = rows.slice(dataStartIndex).flatMap((row) => {
+    if (regionIndex >= 0) {
+      const regionValue = String(row[regionIndex] || '').trim();
+      if (regionValue) activeRegion = regionValue;
+    }
     const institution = String(row[institutionIndex] || '').trim();
     if (!institution || isAggregateInstitution(institution)) return [];
-    const currentMetrics = {};
-    const baselineMetrics = {};
-    for (const { metric, index, phase } of metricColumns) {
+    const region = activeRegion || '未标区域';
+    const metricsByWeek = new Map();
+    const explicitWeek = weekIndex >= 0 ? String(row[weekIndex] || '').trim() : '';
+    for (const { metric, index, period } of metricColumns) {
       const value = parseDashboardNumber(row[index], metric);
       if (value == null) continue;
-      const target = phase === 'baseline' ? baselineMetrics : currentMetrics;
+      const metricWeek = fallbackCurrentWeekForRow(explicitWeek, period, currentWeek);
+      const target = metricsByWeek.get(metricWeek) || {};
       target[metric.id] = value;
+      metricsByWeek.set(metricWeek, target);
     }
-    const explicitWeek = weekIndex >= 0 ? String(row[weekIndex] || '').trim() : '';
-    const week = explicitWeek || currentWeek;
     const explicitYear = yearIndex >= 0 ? row[yearIndex] : '';
-    const year = inferYear(`${source} ${week}`, explicitYear);
-    const result = [];
-    if (Object.keys(baselineMetrics).length) {
-      result.push({ year, week: '年初', institution, metrics: baselineMetrics });
-    }
-    if (Object.keys(currentMetrics).length) {
-      result.push({ year, week, institution, metrics: currentMetrics });
-    }
-    return result;
+    const year = inferYear(`${source} ${currentWeek}`, explicitYear);
+    return [...metricsByWeek.entries()].map(([week, metrics]) => ({ year, week, institution, region, metrics }));
   });
 
   if (!parsedRows.length) throw new Error('指标文件没有有效机构数据');
@@ -942,6 +1012,7 @@ function parseDashboardCsv(csvText, source = '上传文件') {
 
 function generateDashboardSample() {
   const institutions = ['机构A', '机构B', '机构C', '机构D', '机构E', '机构F', '机构G', '机构H', '机构I', '机构J'];
+  const regions = ['城区支行', '郊县支行', '异地分行'];
   const sampleYear = '2026';
   const weeks = Array.from({ length: 8 }, (_, index) => `${sampleYear}年第${index + 1}周`);
   const rows = [];
@@ -953,6 +1024,7 @@ function generateDashboardSample() {
         year: sampleYear,
         week,
         institution,
+        region: regions[institutionIndex % regions.length],
         metrics: {
           coverage: Math.min(0.92, base + wave),
           bill: Math.min(0.88, base - 0.06 + Math.cos(institutionIndex + weekIndex) * 0.025),
@@ -976,8 +1048,26 @@ function availableMetrics(rows) {
   return metricDefinitions.filter((metric) => rows.some((row) => row.metrics[metric.id] != null));
 }
 
-function rowsForYear(year = dashboardState.selectedYear) {
+function allRowsForYear(year = dashboardState.selectedYear) {
   return dashboardState.rows.filter((row) => row.year === year);
+}
+
+function rowMatchesRegion(row) {
+  return dashboardState.selectedRegion === 'all' || (row.region || '未标区域') === dashboardState.selectedRegion;
+}
+
+function rowsForYear(year = dashboardState.selectedYear) {
+  return allRowsForYear(year).filter(rowMatchesRegion);
+}
+
+function regionOptionsForYear(year = dashboardState.selectedYear) {
+  return [...new Set(allRowsForYear(year).map((row) => row.region || '未标区域'))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+}
+
+function regionSelectControls() {
+  return [regionSelect, rankingRegionSelect, heatmapRegionSelect].filter(Boolean);
 }
 
 function weeksForYear(year = dashboardState.selectedYear) {
@@ -985,7 +1075,11 @@ function weeksForYear(year = dashboardState.selectedYear) {
 }
 
 function rowsForWeek(week) {
-  return dashboardState.rows.filter((row) => row.year === dashboardState.selectedYear && row.week === week);
+  return dashboardState.rows.filter((row) => (
+    row.year === dashboardState.selectedYear
+    && row.week === week
+    && rowMatchesRegion(row)
+  ));
 }
 
 function yearStartWeek() {
@@ -1009,6 +1103,27 @@ function metricById(metricId) {
   return metricDefinitions.find((metric) => metric.id === metricId);
 }
 
+function weakMetricsBelowRegionAverage(row, week) {
+  const region = row.region || '未标区域';
+  const peers = dashboardState.rows.filter((item) => (
+    item.year === dashboardState.selectedYear
+    && item.week === week
+    && (item.region || '未标区域') === region
+  ));
+  return availableMetrics([row])
+    .filter((metric) => metric.id !== 'keyCustomers')
+    .map((metric) => {
+      const value = row.metrics[metric.id];
+      const peerAverage = average(peers.map((item) => item.metrics[metric.id]));
+      if (value == null || peerAverage == null) return null;
+      const rawGap = metric.kind === 'inverseRate' ? value - peerAverage : peerAverage - value;
+      const weak = metric.kind === 'inverseRate' ? value > peerAverage : value < peerAverage;
+      return weak ? { metric, gap: rawGap, average: peerAverage } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.gap - a.gap);
+}
+
 function filterRowsByScope(rows, scope) {
   if (scope === 'reached') return rows.filter((row) => row.metrics.coverage != null && row.metrics.coverage >= metricById('coverage').target);
   if (scope === 'unreached') return rows.filter((row) => row.metrics.coverage != null && row.metrics.coverage < metricById('coverage').target);
@@ -1016,9 +1131,8 @@ function filterRowsByScope(rows, scope) {
 }
 
 function selectableTrendMetrics() {
-  return combinedTrendMetricIds
-    .map((id) => metricById(id))
-    .filter((metric) => metric && rowsForYear().some((row) => row.metrics[metric.id] != null));
+  const yearRows = rowsForYear();
+  return availableMetrics(yearRows);
 }
 
 function ensureTrendMetricSelection() {
@@ -1037,12 +1151,23 @@ function heatmapMetricsForSelection(rows) {
 function renderDashboardControls() {
   const metrics = availableMetrics(rowsForYear());
   const yearWeeks = weeksForYear();
+  const regions = regionOptionsForYear();
   yearSelect.innerHTML = dashboardState.years.map((year) => (
     `<option value="${escapeHtml(year)}"${year === dashboardState.selectedYear ? ' selected' : ''}>${escapeHtml(year)}</option>`
   )).join('');
   weekSelect.innerHTML = yearWeeks.map((week) => (
     `<option value="${escapeHtml(week)}"${week === dashboardState.selectedWeek ? ' selected' : ''}>${escapeHtml(week)}</option>`
   )).join('');
+  regionSelectControls().forEach((select) => {
+    select.innerHTML = [
+      `<option value="all"${dashboardState.selectedRegion === 'all' ? ' selected' : ''}>全部区域</option>`,
+      ...regions.map((region) => (
+        `<option value="${escapeHtml(region)}"${region === dashboardState.selectedRegion ? ' selected' : ''}>${escapeHtml(region)}</option>`
+      )),
+    ].join('');
+    select.value = dashboardState.selectedRegion;
+    select.disabled = regions.length <= 1;
+  });
   rankingMetricSelect.innerHTML = metrics.map((metric) => (
     `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
   )).join('');
@@ -1070,6 +1195,10 @@ function renderTrendMetricPicker() {
 function ensureDashboardSelections() {
   if (!dashboardState.years.includes(dashboardState.selectedYear)) {
     dashboardState.selectedYear = dashboardState.years[dashboardState.years.length - 1] || '';
+  }
+  const regions = regionOptionsForYear();
+  if (dashboardState.selectedRegion !== 'all' && !regions.includes(dashboardState.selectedRegion)) {
+    dashboardState.selectedRegion = 'all';
   }
   const yearWeeks = weeksForYear();
   if (!yearWeeks.includes(dashboardState.selectedWeek)) {
@@ -1290,59 +1419,6 @@ function renderCombinedTrendChart() {
     return;
   }
 
-  const width = 860;
-  const height = 360;
-  const padding = { top: 30, right: 24, bottom: 46, left: 42 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const colors = ['#0f766e', '#2563eb', '#b45309', '#7c3aed', '#0e7490'];
-  const allValues = series.flatMap((item) => item.values.map((point) => point.value)).filter((value) => value != null);
-  const valueMax = Math.max(...allValues, 0.01);
-  const valueMin = Math.min(0, ...allValues);
-  const valueRange = Math.max(valueMax - valueMin, 0.01);
-  const deltaSeries = series.map((item) => {
-    const baseValue = item.values.find((point) => point.value != null)?.value ?? null;
-    return {
-      ...item,
-      deltas: item.values.map((point) => ({
-        week: point.week,
-        value: point.value != null && baseValue != null ? point.value - baseValue : null,
-      })),
-    };
-  });
-  const allDeltas = deltaSeries.flatMap((item) => item.deltas.map((point) => point.value)).filter((value) => value != null);
-  const deltaMax = Math.max(...allDeltas, 0.01);
-  const deltaMin = Math.min(...allDeltas, -0.01);
-  const deltaRange = Math.max(deltaMax - deltaMin, 0.01);
-  const weekStep = yearWeeks.length > 1 ? plotWidth / (yearWeeks.length - 1) : plotWidth;
-  const groupWidth = Math.min(70, Math.max(34, weekStep * 0.68));
-  const barWidth = Math.max(4, groupWidth / Math.max(series.length, 1) - 2);
-  const xForWeek = (index) => padding.left + (yearWeeks.length === 1 ? plotWidth / 2 : index * weekStep);
-  const yForValue = (value) => padding.top + plotHeight - ((value - valueMin) / valueRange) * plotHeight;
-  const yForDelta = (value) => padding.top + plotHeight - ((value - deltaMin) / deltaRange) * plotHeight;
-
-  const bars = series.map((item, seriesIndex) => item.values.map((point, weekIndex) => {
-    if (point.value == null) return '';
-    const groupStart = xForWeek(weekIndex) - groupWidth / 2;
-    const x = groupStart + seriesIndex * (barWidth + 2);
-    const y = yForValue(point.value);
-    const barHeight = Math.max(2, padding.top + plotHeight - y);
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="3" fill="${colors[seriesIndex % colors.length]}" opacity="0.28"></rect>`;
-  }).join('')).join('');
-  const lines = deltaSeries.map((item, seriesIndex) => {
-    const points = item.deltas.map((point, weekIndex) => {
-      if (point.value == null) return null;
-      return `${xForWeek(weekIndex).toFixed(1)},${yForDelta(point.value).toFixed(1)}`;
-    }).filter(Boolean).join(' ');
-    return points ? `<polyline points="${points}" fill="none" stroke="${colors[seriesIndex % colors.length]}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>` : '';
-  }).join('');
-  const xLabels = yearWeeks.map((week, index) => (
-    `<text x="${xForWeek(index).toFixed(1)}" y="${height - 14}" text-anchor="middle">${escapeHtml(week)}</text>`
-  )).join('');
-  const legend = series.map((item, index) => (
-    `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.metric.label)}</span>`
-  )).join('');
-
   if (dashboardState.trendChartType === 'radar') {
     renderRadarChart(series);
     return;
@@ -1356,18 +1432,80 @@ function renderCombinedTrendChart() {
     return;
   }
 
+  const width = 900;
+  const height = 390;
+  const padding = { top: 28, right: 34, bottom: 54, left: 52 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const colors = ['#0f766e', '#2563eb', '#b45309', '#7c3aed', '#0e7490', '#be123c', '#4338ca', '#15803d'];
+  const weekStep = yearWeeks.length > 1 ? plotWidth / (yearWeeks.length - 1) : plotWidth;
+  const xForWeek = (index) => padding.left + (yearWeeks.length === 1 ? plotWidth / 2 : index * weekStep);
+  const yForScore = (score) => padding.top + plotHeight - Math.max(0, Math.min(100, score)) / 100 * plotHeight;
+  const scoredSeries = series.map((item) => {
+    const baseValue = item.values.find((point) => point.value != null)?.value ?? null;
+    const latestValue = latestMetricValue(item);
+    const latestDelta = latestValue != null && baseValue != null ? latestValue - baseValue : null;
+    return {
+      ...item,
+      latestValue,
+      latestDelta,
+      points: item.values.map((point) => ({
+        ...point,
+        score: point.value == null ? null : Math.round((valueForScore(point.value, item.metric) ?? 0) * 100),
+      })),
+    };
+  });
+  const gridLines = [0, 25, 50, 75, 100].map((score) => {
+    const y = yForScore(score);
+    return `
+      <line x1="${padding.left}" y1="${y.toFixed(1)}" x2="${width - padding.right}" y2="${y.toFixed(1)}" class="trend-grid-line"></line>
+      <text x="${padding.left - 10}" y="${(y + 4).toFixed(1)}" text-anchor="end">${score}</text>
+    `;
+  }).join('');
+  const xLabels = yearWeeks.map((week, index) => (
+    `<text x="${xForWeek(index).toFixed(1)}" y="${height - 18}" text-anchor="middle">${escapeHtml(week)}</text>`
+  )).join('');
+  const lines = scoredSeries.map((item, seriesIndex) => {
+    const color = colors[seriesIndex % colors.length];
+    const points = item.points.map((point, weekIndex) => {
+      if (point.score == null) return null;
+      return `${xForWeek(weekIndex).toFixed(1)},${yForScore(point.score).toFixed(1)}`;
+    }).filter(Boolean).join(' ');
+    const dots = item.points.map((point, weekIndex) => {
+      if (point.score == null) return '';
+      const x = xForWeek(weekIndex);
+      const y = yForScore(point.score);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.2" fill="${color}" class="trend-point"><title>${escapeHtml(item.metric.label)} ${escapeHtml(point.week)} ${escapeHtml(formatDashboardValue(point.value, item.metric))}</title></circle>`;
+    }).join('');
+    return points ? `
+      <polyline points="${points}" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      ${dots}
+    ` : '';
+  }).join('');
+  const latestCards = scoredSeries.map((item, index) => `
+    <div class="trend-summary-card" style="--series-color:${colors[index % colors.length]}">
+      <span>${escapeHtml(item.metric.label)}</span>
+      <strong>${escapeHtml(formatDashboardValue(item.latestValue, item.metric))}</strong>
+      <em>较年初 ${escapeHtml(formatDelta(item.latestDelta, item.metric))}</em>
+    </div>
+  `).join('');
+  const legend = scoredSeries.map((item, index) => (
+    `<span><i style="background:${colors[index % colors.length]}"></i>${escapeHtml(item.metric.label)}</span>`
+  )).join('');
+
   combinedTrendChart.innerHTML = `
-    <svg class="trend-svg combined-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="周度趋势折柱同图">
+    <div class="trend-summary">${latestCards}</div>
+    <svg class="trend-svg combined-trend-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="周度趋势总览">
+      ${gridLines}
       <line x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${width - padding.right}" y2="${padding.top + plotHeight}" class="axis-line"></line>
       <line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + plotHeight}" class="axis-line"></line>
-      <g class="combined-bars">${bars}</g>
+      <text x="${padding.left}" y="18" class="trend-axis-title">表现指数 0-100</text>
       <g class="combined-lines">${lines}</g>
       ${xLabels}
     </svg>
     <div class="chart-legend">
       ${legend}
-      <span><i class="legend-bar"></i>柱：当前值</span>
-      <span><i class="legend-line"></i>线：较年初新增</span>
+      <span>已按指标目标值归一化，便于跨量纲比较</span>
     </div>
   `;
 }
@@ -1465,29 +1603,39 @@ function renderHeatmap() {
   const week = dashboardState.selectedWeek;
   const baseRows = rowsForWeek(week);
   const metrics = heatmapMetricsForSelection(baseRows);
+  const regionScoreAverages = new Map();
+  const allWeekRows = dashboardState.rows.filter((row) => row.year === dashboardState.selectedYear && row.week === week);
+  const averageScoreForRegionMetric = (region, metric) => {
+    const key = `${region}:${metric.id}`;
+    if (!regionScoreAverages.has(key)) {
+      const peers = allWeekRows.filter((row) => (row.region || '未标区域') === region);
+      regionScoreAverages.set(key, average(peers.map((row) => valueForScore(row.metrics[metric.id], metric))));
+    }
+    return regionScoreAverages.get(key);
+  };
   const rows = [...baseRows].sort((a, b) => {
     if (dashboardState.heatmapSort === 'name') return a.institution.localeCompare(b.institution, 'zh-CN');
     const aScore = average(metrics.map((metric) => valueForScore(a.metrics[metric.id], metric)));
     const bScore = average(metrics.map((metric) => valueForScore(b.metrics[metric.id], metric)));
+    if (dashboardState.heatmapSort === 'strong') {
+      return (bScore ?? 0) - (aScore ?? 0) || a.institution.localeCompare(b.institution, 'zh-CN');
+    }
     return (aScore ?? 0) - (bScore ?? 0);
   });
-  heatmapHint.textContent = `${week}，圆点标出各机构低分业务`;
+  heatmapHint.textContent = `${week}，圆点标出低于所属区域类型均值的指标`;
   if (!rows.length || !metrics.length) {
     heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
     return;
   }
   const header = metrics.map((metric) => `<th>${escapeHtml(metric.label)}</th>`).join('');
   const body = rows.map((row) => {
-    const rowScores = metrics.map((metric) => ({
-      metric,
-      score: valueForScore(row.metrics[metric.id], metric),
-    })).filter((item) => item.score != null);
-    const rowMinScore = rowScores.length ? Math.min(...rowScores.map((item) => item.score)) : null;
+    const region = row.region || '未标区域';
     const cells = metrics.map((metric) => {
       const value = row.metrics[metric.id];
       const score = valueForScore(value, metric);
       const level = score == null ? 0 : Math.round(score * 100);
-      const isWeakness = score != null && rowMinScore != null && Math.abs(score - rowMinScore) < 0.0001;
+      const regionAverageScore = averageScoreForRegionMetric(region, metric);
+      const isWeakness = score != null && regionAverageScore != null && score < regionAverageScore;
       return `<td><span class="heat-cell ${isWeakness ? 'is-row-low' : ''}" style="--heat:${level}">${escapeHtml(formatDashboardValue(value, metric))}</span></td>`;
     }).join('');
     return `<tr><th>${escapeHtml(row.institution)}</th>${cells}</tr>`;
@@ -1534,16 +1682,16 @@ function renderSingleInstitution() {
   const coverage = row.metrics.coverage ?? null;
   const baseCoverage = baseWeek ? institutionMetricForWeek(baseWeek, institution, 'coverage') : null;
   const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
-  const weakness = availableMetrics([row]).map((metric) => ({
-    metric,
-    score: valueForScore(row.metrics[metric.id], metric),
-  })).filter((item) => item.score != null).sort((a, b) => a.score - b.score)[0];
+  const regionWeakness = weakMetricsBelowRegionAverage(row, week);
+  const weaknessLabel = regionWeakness.length
+    ? regionWeakness.slice(0, 3).map((item) => item.metric.label).join('、')
+    : '无';
 
   institutionKpis.innerHTML = [
     [formatDashboardValue(coverage, coverageMetric), '综合业务覆盖率'],
     [formatDelta(coverageDelta, coverageMetric), baseWeek ? '较年初新增' : '暂无基准'],
     [formatDashboardValue(row.metrics.keyCustomers, keyCustomersMetric), '重点客群数'],
-    [weakness?.metric.label || '-', '最低短板指标'],
+    [weaknessLabel, `低于${row.region || '未标区域'}均值指标`],
   ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
 
   const barMetrics = metricDefinitions
@@ -1598,6 +1746,10 @@ function renderDashboard() {
     dashboardSource.textContent = '未载入数据';
     yearSelect.innerHTML = '<option>暂无年份</option>';
     weekSelect.innerHTML = '<option>暂无数据</option>';
+    regionSelectControls().forEach((select) => {
+      select.innerHTML = '<option>全部区域</option>';
+      select.disabled = true;
+    });
     rankingMetricSelect.innerHTML = '<option>暂无指标</option>';
     institutionSelect.innerHTML = '<option>暂无机构</option>';
     institutionMetricSelect.innerHTML = '<option>暂无指标</option>';
@@ -1627,6 +1779,10 @@ function loadDashboardData(dataset) {
     : years[years.length - 1] || '';
   const institutions = [...new Set(dataset.rows.filter((row) => row.year === selectedYear).map((row) => row.institution))]
     .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const regions = [...new Set(dataset.rows.filter((row) => row.year === selectedYear).map((row) => row.region || '未标区域'))];
+  const selectedRegion = dashboardState.selectedRegion === 'all' || regions.includes(dashboardState.selectedRegion)
+    ? dashboardState.selectedRegion
+    : 'all';
   const selectedYearWeeks = sortWeeks([...new Set(dataset.rows.filter((row) => row.year === selectedYear).map((row) => row.week))]);
   dashboardState = {
     rows: dataset.rows,
@@ -1634,6 +1790,7 @@ function loadDashboardData(dataset) {
     weeks: dataset.weeks,
     selectedYear,
     selectedWeek: selectedYearWeeks[selectedYearWeeks.length - 1] || dataset.weeks[dataset.weeks.length - 1] || '',
+    selectedRegion,
     selectedMetricId: metrics.some((metric) => metric.id === dashboardState.selectedMetricId)
       ? dashboardState.selectedMetricId
       : metrics[0]?.id || 'coverage',
@@ -1713,6 +1870,16 @@ yearSelect.addEventListener('change', () => {
 weekSelect.addEventListener('change', () => {
   dashboardState.selectedWeek = weekSelect.value;
   renderDashboard();
+});
+
+function handleRegionSelectChange(event) {
+  dashboardState.selectedRegion = event.target.value;
+  dashboardState.rankExpanded = false;
+  renderDashboard();
+}
+
+regionSelectControls().forEach((select) => {
+  select.addEventListener('change', handleRegionSelectChange);
 });
 
 overviewScopeSelect.addEventListener('change', () => {
