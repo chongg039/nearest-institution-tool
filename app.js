@@ -1261,13 +1261,6 @@ function metricAverageForWeek(week, metricId) {
   return average(rowsForWeek(week).map((row) => row.metrics[metricId]));
 }
 
-function metricAverageForRegionWeek(week, region, metricId) {
-  const regionLabel = region || '未标区域';
-  return average(rowsForWeek(week)
-    .filter((row) => (row.region || '未标区域') === regionLabel)
-    .map((row) => row.metrics[metricId]));
-}
-
 function institutionMetricForWeek(week, institution, metricId) {
   return rowsForWeek(week).find((row) => row.institution === institution)?.metrics[metricId] ?? null;
 }
@@ -1918,23 +1911,13 @@ function renderSingleInstitution() {
       metric,
       value: row.metrics[metric.id],
       score: valueForScore(row.metrics[metric.id], metric) ?? 0,
-      regionAverage: metricAverageForRegionWeek(week, row.region, metric.id),
     }));
-  const maxBarScore = Math.max(...barMetrics.map((item) => item.score), 0.01);
   institutionBars.innerHTML = barMetrics.map((item) => {
-    const width = item.score > 0 ? Math.max(12, Math.round(Math.sqrt(item.score / maxBarScore) * 100)) : 0;
-    const averageScore = valueForScore(item.regionAverage, item.metric);
-    const averagePosition = averageScore == null ? null : Math.max(0, Math.min(100, Math.round(Math.sqrt(averageScore / maxBarScore) * 100)));
+    const width = Math.max(3, Math.round(item.score * 100));
     return `
       <div class="institution-bar-row">
         <span>${escapeHtml(item.metric.label)}</span>
-        <div class="institution-bar-track">
-          <span class="institution-bar-fill" style="width:${width}%"></span>
-          ${averagePosition == null ? '' : `
-            <i class="institution-average-marker" style="left:${averagePosition}%" title="${escapeHtml(`${row.region || '未标区域'}均值 ${formatDashboardValue(item.regionAverage, item.metric)}`)}"></i>
-            <b class="institution-average-label" style="left:${averagePosition}%">${escapeHtml(formatDashboardValue(item.regionAverage, item.metric))}</b>
-          `}
-        </div>
+        <div class="rank-track"><span style="width:${width}%"></span></div>
         <strong>${escapeHtml(formatDashboardValue(item.value, item.metric))}</strong>
       </div>
     `;

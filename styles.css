@@ -823,7 +823,7 @@ textarea:focus {
 
 .institution-bar-row {
   display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(150px, 1fr) 76px;
+  grid-template-columns: minmax(120px, 180px) minmax(100px, 1fr) 76px;
   align-items: center;
   gap: 10px;
 }
@@ -838,47 +838,6 @@ textarea:focus {
 .institution-bar-row strong {
   font-size: 13px;
   text-align: right;
-}
-
-.institution-bar-track {
-  position: relative;
-  height: 28px;
-  overflow: visible;
-  border-radius: 999px;
-  background: #e8eaed;
-}
-
-.institution-bar-fill {
-  display: block;
-  height: 100%;
-  min-width: 18px;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent), #38bdf8);
-}
-
-.institution-average-marker {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  transform: translateX(-1px);
-  border-radius: 999px;
-  background: #b45309;
-  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.12);
-}
-
-.institution-average-label {
-  position: absolute;
-  top: 50%;
-  max-width: 58px;
-  transform: translate(-50%, -50%);
-  color: #7c2d12;
-  font-size: 11px;
-  font-weight: 750;
-  line-height: 1;
-  text-align: center;
-  white-space: nowrap;
-  pointer-events: none;
 }
 
 .heatmap-wrap {
