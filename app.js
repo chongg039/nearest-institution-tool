@@ -784,6 +784,29 @@ function findLooseHeaderColumn(labels, names) {
   return labels.findIndex((label) => headerMatchesAny(label, names));
 }
 
+function regionMapFromCsv(csvText) {
+  const rows = parseCsv(csvText).filter((row) => row.some((cell) => String(cell || '').trim()));
+  if (rows.length < 2) return new Map();
+  const { rowIndex: headerRowIndex, index: institutionIndex } = detectDashboardHeader(rows);
+  if (institutionIndex === -1) return new Map();
+  const headerRows = rows.slice(0, headerRowIndex + 1);
+  const columnCount = maxColumnCount(rows);
+  const labels = Array.from({ length: columnCount }, (_, index) => dashboardColumnLabel(headerRows, index));
+  const regionIndex = findLooseHeaderColumn(labels, ['区域类型', '区域', '地区']);
+  if (regionIndex === -1) return new Map();
+
+  const regionMap = new Map();
+  let activeRegion = '';
+  for (const row of rows.slice(headerRowIndex + 1)) {
+    const region = String(row[regionIndex] || '').trim();
+    if (region) activeRegion = region;
+    const institution = String(row[institutionIndex] || '').trim();
+    if (!institution || !activeRegion || isAggregateInstitution(institution)) continue;
+    regionMap.set(institution, activeRegion);
+  }
+  return regionMap;
+}
+
 function isFormulaHeaderCell(value) {
   const text = String(value || '').trim();
   return Boolean(text && (
@@ -1099,6 +1122,12 @@ function inferDashboardComparisonYear(tables) {
 function parseDashboardTables(tables, fileName = '') {
   if (!tables.length) throw new Error('指标文件没有可读取的数据表');
   const comparisonYear = inferDashboardComparisonYear(tables);
+  const regionMap = new Map();
+  tables.forEach((table) => {
+    regionMapFromCsv(table.csvText).forEach((region, institution) => {
+      if (!regionMap.has(institution)) regionMap.set(institution, region);
+    });
+  });
   const parsedParts = [];
   const errors = [];
   for (const table of tables) {
@@ -1113,7 +1142,12 @@ function parseDashboardTables(tables, fileName = '') {
       errors.push(`${table.sheetName || 'CSV'}：${error.message}`);
     }
   }
-  const rows = parsedParts.flatMap((part) => part.rows);
+  const rows = parsedParts.flatMap((part) => part.rows).map((row) => ({
+    ...row,
+    region: row.region && row.region !== '未标区域'
+      ? row.region
+      : regionMap.get(row.institution) || row.region || '未标区域',
+  }));
   if (!rows.length) throw new Error(errors[0] || '指标文件没有有效机构数据');
   return {
     rows,
