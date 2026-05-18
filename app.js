@@ -1922,10 +1922,9 @@ function renderSingleInstitution() {
     }));
   const maxBarScore = Math.max(...barMetrics.map((item) => item.score), 0.01);
   institutionBars.innerHTML = barMetrics.map((item) => {
-    const rawWidth = Math.round((item.score / maxBarScore) * 100);
-    const width = item.score > 0 && rawWidth < 5 ? 18 : rawWidth;
+    const width = item.score > 0 ? Math.max(18, Math.round(Math.sqrt(item.score / maxBarScore) * 100)) : 0;
     const averageScore = valueForScore(item.regionAverage, item.metric);
-    const averagePosition = averageScore == null ? null : Math.max(0, Math.min(100, Math.round((averageScore / maxBarScore) * 100)));
+    const averagePosition = averageScore == null ? null : Math.max(0, Math.min(100, Math.round(Math.sqrt(averageScore / maxBarScore) * 100)));
     const averageLabelClass = averagePosition == null ? '' : averagePosition > 84 ? ' is-right' : averagePosition < 16 ? ' is-left' : '';
     return `
       <div class="institution-bar-row">
