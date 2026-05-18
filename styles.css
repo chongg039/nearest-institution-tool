@@ -816,58 +816,9 @@ textarea:focus {
   margin-top: 18px;
 }
 
-.institution-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.institution-section-head h3 {
-  margin: 0;
-}
-
-.bar-legend {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.bar-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-}
-
-.legend-current,
-.legend-average {
-  display: inline-block;
-  width: 18px;
-  height: 8px;
-  border-radius: 999px;
-}
-
-.legend-current {
-  background: linear-gradient(90deg, var(--accent), #38bdf8);
-}
-
-.legend-average {
-  width: 3px;
-  height: 14px;
-  border-radius: 999px;
-  background: #b45309;
-}
-
 .institution-bars {
   display: grid;
-  gap: 18px;
-  padding-top: 4px;
+  gap: 10px;
 }
 
 .institution-bar-row {
@@ -891,7 +842,7 @@ textarea:focus {
 
 .institution-bar-track {
   position: relative;
-  height: 34px;
+  height: 28px;
   overflow: visible;
   border-radius: 999px;
   background: #e8eaed;
@@ -900,42 +851,34 @@ textarea:focus {
 .institution-bar-fill {
   display: block;
   height: 100%;
-  min-width: 42px;
+  min-width: 18px;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--accent), #38bdf8);
 }
 
 .institution-average-marker {
   position: absolute;
-  top: -7px;
-  bottom: -7px;
-  width: 3px;
-  transform: translateX(-1.5px);
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  transform: translateX(-1px);
   border-radius: 999px;
   background: #b45309;
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.14);
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.12);
 }
 
 .institution-average-label {
   position: absolute;
-  top: -15px;
-  max-width: 92px;
-  transform: translateX(-50%);
-  color: #92400e;
+  top: 50%;
+  max-width: 58px;
+  transform: translate(-50%, -50%);
+  color: #7c2d12;
   font-size: 11px;
   font-weight: 750;
   line-height: 1;
   text-align: center;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.institution-average-label.is-left {
-  transform: translateX(0);
-}
-
-.institution-average-label.is-right {
-  transform: translateX(-100%);
 }
 
 .heatmap-wrap {
