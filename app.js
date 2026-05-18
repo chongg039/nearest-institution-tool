@@ -111,6 +111,7 @@ const heatmapMetricGroups = {
   core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
   contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
 };
+const institutionLowShareMetricIds = new Set(['acquiring', 'stateBusiness']);
 
 function showToast(message, type = 'info') {
   toast.textContent = message;
@@ -1044,6 +1045,20 @@ function valueForScore(value, metric) {
   return Math.max(0, Math.min(1, value));
 }
 
+function institutionBarScale(value, metric) {
+  if (value == null || !Number.isFinite(value)) return { score: 0, label: '0-100%' };
+  if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || value < 0.1)) {
+    return {
+      score: Math.max(0, Math.min(1, value / 0.1)),
+      label: '0-10%',
+    };
+  }
+  return {
+    score: valueForScore(value, metric) ?? 0,
+    label: metric.kind === 'count' ? `0-${metric.target}` : '0-100%',
+  };
+}
+
 function average(values) {
   const valid = values.filter((value) => value != null && Number.isFinite(value));
   if (!valid.length) return null;
@@ -1907,16 +1922,20 @@ function renderSingleInstitution() {
 
   const barMetrics = metricDefinitions
     .filter((metric) => metric.id !== 'keyCustomers' && row.metrics[metric.id] != null)
-    .map((metric) => ({
-      metric,
-      value: row.metrics[metric.id],
-      score: valueForScore(row.metrics[metric.id], metric) ?? 0,
-    }));
+    .map((metric) => {
+      const scale = institutionBarScale(row.metrics[metric.id], metric);
+      return {
+        metric,
+        value: row.metrics[metric.id],
+        score: scale.score,
+        scaleLabel: scale.label,
+      };
+    });
   institutionBars.innerHTML = barMetrics.map((item) => {
     const width = Math.max(3, Math.round(item.score * 100));
     return `
       <div class="institution-bar-row">
-        <span>${escapeHtml(item.metric.label)}</span>
+        <span title="${escapeHtml(`${item.metric.label}，刻度 ${item.scaleLabel}`)}">${escapeHtml(item.metric.label)}<small>${escapeHtml(item.scaleLabel)}</small></span>
         <div class="rank-track"><span style="width:${width}%"></span></div>
         <strong>${escapeHtml(formatDashboardValue(item.value, item.metric))}</strong>
       </div>
