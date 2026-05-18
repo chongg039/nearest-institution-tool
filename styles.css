@@ -243,6 +243,11 @@ textarea:focus {
   padding: 0 14px;
 }
 
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .ghost-link.is-disabled {
   pointer-events: none;
   opacity: 0.45;
@@ -371,6 +376,10 @@ textarea:focus {
 
 .panel-tools .field {
   min-width: 150px;
+}
+
+.compact-action {
+  min-width: 142px;
 }
 
 .dashboard-actions {
@@ -1168,6 +1177,10 @@ textarea:focus {
 
   .panel-tools .field {
     min-width: 0;
+  }
+
+  .compact-action {
+    width: 100%;
   }
 
   .dashboard-toolbar,

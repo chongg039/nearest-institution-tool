@@ -37,6 +37,8 @@ const trendChartTypeSelect = document.querySelector('#trendChartTypeSelect');
 const trendMetricPicker = document.querySelector('#trendMetricPicker');
 const institutionSelect = document.querySelector('#institutionSelect');
 const institutionMetricSelect = document.querySelector('#institutionMetricSelect');
+const downloadInstitutionPdfButton = document.querySelector('#downloadInstitutionPdfButton');
+const downloadAllInstitutionPdfsButton = document.querySelector('#downloadAllInstitutionPdfsButton');
 const heatmapMetricScopeSelect = document.querySelector('#heatmapMetricScopeSelect');
 const heatmapRegionSelect = document.querySelector('#heatmapRegionSelect');
 const heatmapSortSelect = document.querySelector('#heatmapSortSelect');
@@ -1885,6 +1887,379 @@ function renderHeatmap() {
   `;
 }
 
+function safeFileNamePart(value) {
+  return String(value || '未命名')
+    .replace(/[\\/:*?"<>|\s]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80) || '未命名';
+}
+
+function currentDashboardPeriodLabel() {
+  const year = dashboardState.selectedYear || '';
+  const week = dashboardState.selectedWeek || '';
+  if (year && week && !week.includes(year)) return `${year}_${week}`;
+  return week || year || '未标日期';
+}
+
+function institutionPdfFileName(institution) {
+  return `${safeFileNamePart(institution)}_${safeFileNamePart(currentDashboardPeriodLabel())}.pdf`;
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const source = String(text ?? '');
+  const lines = [];
+  let line = '';
+  for (const char of source) {
+    const candidate = `${line}${char}`;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = char;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, options = {}) {
+  ctx.save();
+  ctx.font = options.font || '24px "PingFang SC", "Microsoft YaHei", Arial, sans-serif';
+  ctx.fillStyle = options.color || '#1f2428';
+  ctx.textBaseline = 'top';
+  const lines = wrapCanvasText(ctx, text, maxWidth);
+  lines.slice(0, options.maxLines || lines.length).forEach((line, index) => {
+    ctx.fillText(line, x, y + index * lineHeight);
+  });
+  ctx.restore();
+  return y + Math.min(lines.length, options.maxLines || lines.length) * lineHeight;
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function createInstitutionReport(institution) {
+  const week = dashboardState.selectedWeek;
+  const row = rowsForWeek(week).find((item) => item.institution === institution);
+  if (!row) throw new Error(`暂无 ${institution || '该机构'} 的当前周数据`);
+  const baseWeek = yearStartWeek();
+  const coverageMetric = metricById('coverage');
+  const keyCustomersMetric = metricById('keyCustomers');
+  const coverage = row.metrics.coverage ?? null;
+  const baseCoverage = baseWeek ? institutionMetricForWeek(baseWeek, institution, 'coverage') : null;
+  const coverageDelta = coverage != null && baseCoverage != null ? coverage - baseCoverage : null;
+  const keyCustomers = row.metrics.keyCustomers ?? null;
+  const baseKeyCustomers = baseWeek ? institutionMetricForWeek(baseWeek, institution, 'keyCustomers') : null;
+  const keyCustomersDelta = keyCustomers != null && baseKeyCustomers != null ? keyCustomers - baseKeyCustomers : null;
+  const weaknesses = weakMetricsBelowRegionAverage(row, week);
+  const trendMetric = metricById(dashboardState.selectedInstitutionMetricId) || coverageMetric;
+  const businessMetrics = metricDefinitions
+    .filter((metric) => metric.id !== 'keyCustomers' && row.metrics[metric.id] != null)
+    .map((metric) => {
+      const value = row.metrics[metric.id];
+      const regionAverage = metricAverageForRegionWeek(week, row.region, metric.id);
+      const score = valueForScore(value, metric) ?? 0;
+      const averageScore = valueForScore(regionAverage, metric);
+      const gap = value != null && regionAverage != null
+        ? (metric.kind === 'inverseRate' ? regionAverage - value : value - regionAverage)
+        : null;
+      return { metric, value, regionAverage, score, averageScore, gap };
+    });
+  return {
+    institution,
+    year: dashboardState.selectedYear,
+    week,
+    period: currentDashboardPeriodLabel(),
+    region: row.region || '未标区域',
+    source: dashboardState.source || '当前页面数据',
+    generatedAt: new Date().toLocaleString('zh-CN'),
+    kpis: [
+      { label: '综合业务覆盖率', value: formatDashboardValue(coverage, coverageMetric) },
+      { label: baseWeek ? '较年初新增' : '暂无基准', value: formatDelta(coverageDelta, coverageMetric) },
+      { label: '重点客群数', value: formatDashboardValue(keyCustomers, keyCustomersMetric) },
+      { label: baseWeek ? '重点客群较年初' : '暂无基准', value: formatDelta(keyCustomersDelta, keyCustomersMetric) },
+    ],
+    businessMetrics,
+    weaknesses,
+    trendMetric,
+    trendValues: weeksForYear().map((itemWeek) => ({
+      week: itemWeek,
+      value: institutionMetricForWeek(itemWeek, institution, trendMetric.id),
+    })),
+  };
+}
+
+function drawInstitutionReport(report) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1240;
+  canvas.height = 1754;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#0f766e';
+  ctx.fillRect(0, 0, canvas.width, 18);
+  drawWrappedText(ctx, `${report.institution} 机构分析报告`, 72, 64, 760, 52, {
+    font: '700 42px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+  });
+  drawWrappedText(ctx, `数据周期：${report.period}    区域类型：${report.region}`, 72, 126, 920, 30, {
+    font: '24px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+    color: '#667085',
+  });
+  drawWrappedText(ctx, `生成时间：${report.generatedAt}`, 72, 166, 920, 28, {
+    font: '22px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+    color: '#667085',
+  });
+  drawWrappedText(ctx, `来源：${report.source}`, 72, 202, 1040, 28, {
+    font: '20px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+    color: '#667085',
+    maxLines: 2,
+  });
+
+  const cardGap = 18;
+  const cardWidth = (1096 - cardGap * 3) / 4;
+  report.kpis.forEach((item, index) => {
+    const x = 72 + index * (cardWidth + cardGap);
+    const y = 292;
+    drawRoundRect(ctx, x, y, cardWidth, 142, 14);
+    ctx.fillStyle = '#f2f4f7';
+    ctx.fill();
+    ctx.strokeStyle = '#dadde1';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    drawWrappedText(ctx, item.value, x + 22, y + 26, cardWidth - 44, 36, {
+      font: '700 34px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#1f2428',
+      maxLines: 1,
+    });
+    drawWrappedText(ctx, item.label, x + 22, y + 82, cardWidth - 44, 26, {
+      font: '21px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#667085',
+      maxLines: 2,
+    });
+  });
+
+  drawWrappedText(ctx, '当前周业务结构', 72, 500, 400, 34, {
+    font: '700 28px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+  });
+  drawWrappedText(ctx, `橙色刻度为 ${report.region} 平均值`, 72, 538, 520, 26, {
+    font: '20px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+    color: '#667085',
+  });
+
+  let metricY = 590;
+  const barX = 330;
+  const barWidth = 560;
+  const rowsToDraw = report.businessMetrics.slice(0, 12);
+  rowsToDraw.forEach((item) => {
+    const rowY = metricY;
+    drawWrappedText(ctx, item.metric.label, 72, rowY - 4, 220, 28, {
+      font: '21px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#667085',
+      maxLines: 1,
+    });
+    ctx.fillStyle = '#e8eaed';
+    drawRoundRect(ctx, barX, rowY, barWidth, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = '#0f766e';
+    drawRoundRect(ctx, barX, rowY, Math.max(8, barWidth * Math.max(0, Math.min(1, item.score))), 18, 9);
+    ctx.fill();
+    if (item.averageScore != null) {
+      const markerX = barX + barWidth * Math.max(0, Math.min(1, item.averageScore));
+      ctx.strokeStyle = '#b45309';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(markerX, rowY - 8);
+      ctx.lineTo(markerX, rowY + 26);
+      ctx.stroke();
+    }
+    drawWrappedText(ctx, formatDashboardValue(item.value, item.metric), 920, rowY - 8, 116, 28, {
+      font: '700 22px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      maxLines: 1,
+    });
+    drawWrappedText(ctx, item.regionAverage == null ? '-' : formatDashboardValue(item.regionAverage, item.metric), 1042, rowY - 8, 120, 28, {
+      font: '20px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#92400e',
+      maxLines: 1,
+    });
+    metricY += 54;
+  });
+  if (!rowsToDraw.length) {
+    drawWrappedText(ctx, '暂无业务指标', 72, metricY, 420, 30, {
+      font: '22px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#667085',
+    });
+  }
+
+  const weaknessY = 1250;
+  drawWrappedText(ctx, '低于区域均值的短板指标', 72, weaknessY, 480, 34, {
+    font: '700 28px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+  });
+  const weaknessText = report.weaknesses.length
+    ? report.weaknesses.slice(0, 5).map((item) => `${item.metric.label}（区域均值 ${formatDashboardValue(item.average, item.metric)}）`).join('；')
+    : '当前周暂无低于所属区域均值的业务指标。';
+  drawWrappedText(ctx, weaknessText, 72, weaknessY + 44, 500, 34, {
+    font: '22px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+    color: '#667085',
+    maxLines: 5,
+  });
+
+  drawInstitutionTrendOnCanvas(ctx, report, 640, 1248, 520, 300);
+  return canvas;
+}
+
+function drawInstitutionTrendOnCanvas(ctx, report, x, y, width, height) {
+  drawWrappedText(ctx, `${report.trendMetric.label}趋势`, x, y, width, 34, {
+    font: '700 28px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+  });
+  const chartY = y + 52;
+  const chartHeight = height - 52;
+  const padding = { top: 20, right: 18, bottom: 48, left: 48 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = chartHeight - padding.top - padding.bottom;
+  ctx.strokeStyle = '#dadde1';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x, chartY, width, chartHeight);
+  const validValues = report.trendValues.filter((item) => item.value != null);
+  if (!validValues.length) {
+    drawWrappedText(ctx, '暂无趋势数据', x + 24, chartY + 86, width - 48, 30, {
+      font: '22px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#667085',
+    });
+    return;
+  }
+  const scores = report.trendValues.map((item) => ({
+    ...item,
+    score: valueForScore(item.value, report.trendMetric),
+  }));
+  const xForIndex = (index) => x + padding.left + (scores.length === 1 ? plotWidth / 2 : (plotWidth * index) / (scores.length - 1));
+  const yForScore = (score) => chartY + padding.top + plotHeight - Math.max(0, Math.min(1, score ?? 0)) * plotHeight;
+  [0, 0.25, 0.5, 0.75, 1].forEach((tick) => {
+    const lineY = yForScore(tick);
+    ctx.strokeStyle = '#eef0f3';
+    ctx.beginPath();
+    ctx.moveTo(x + padding.left, lineY);
+    ctx.lineTo(x + width - padding.right, lineY);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = '#0f766e';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  let hasPoint = false;
+  scores.forEach((item, index) => {
+    if (item.score == null) return;
+    const pointX = xForIndex(index);
+    const pointY = yForScore(item.score);
+    if (!hasPoint) {
+      ctx.moveTo(pointX, pointY);
+      hasPoint = true;
+    } else {
+      ctx.lineTo(pointX, pointY);
+    }
+  });
+  ctx.stroke();
+  scores.forEach((item, index) => {
+    if (item.score == null) return;
+    const pointX = xForIndex(index);
+    const pointY = yForScore(item.score);
+    ctx.fillStyle = '#0f766e';
+    ctx.beginPath();
+    ctx.arc(pointX, pointY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    if (index === scores.length - 1 || index === 0) {
+      drawWrappedText(ctx, formatDashboardValue(item.value, report.trendMetric), pointX - 42, pointY - 32, 84, 22, {
+        font: '18px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+        color: '#1f2428',
+        maxLines: 1,
+      });
+    }
+  });
+  const labelStep = Math.max(1, Math.ceil(scores.length / 5));
+  scores.forEach((item, index) => {
+    if (index % labelStep !== 0 && index !== scores.length - 1) return;
+    drawWrappedText(ctx, item.week, xForIndex(index) - 42, chartY + chartHeight - 38, 84, 22, {
+      font: '18px "PingFang SC", "Microsoft YaHei", Arial, sans-serif',
+      color: '#667085',
+      maxLines: 1,
+    });
+  });
+}
+
+function binaryStringToUint8Array(binary) {
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index) & 0xff;
+  }
+  return bytes;
+}
+
+function imageCanvasToPdfBlob(canvas) {
+  const jpegData = canvas.toDataURL('image/jpeg', 0.92).split(',')[1];
+  const imageBytes = atob(jpegData);
+  const pageWidth = 595.28;
+  const pageHeight = 841.89;
+  const content = `q\n${pageWidth} 0 0 ${pageHeight} 0 0 cm\n/Im0 Do\nQ\n`;
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
+    `4 0 obj\n<< /Type /XObject /Subtype /Image /Width ${canvas.width} /Height ${canvas.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${imageBytes.length} >>\nstream\n${imageBytes}\nendstream\nendobj\n`,
+    `5 0 obj\n<< /Length ${content.length} >>\nstream\n${content}endstream\nendobj\n`,
+  ];
+  let pdf = '%PDF-1.3\n';
+  const offsets = [0];
+  objects.forEach((object) => {
+    offsets.push(pdf.length);
+    pdf += object;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n`;
+  pdf += '0000000000 65535 f \n';
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([binaryStringToUint8Array(pdf)], { type: 'application/pdf' });
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+function downloadInstitutionPdf(institution) {
+  const report = createInstitutionReport(institution);
+  const canvas = drawInstitutionReport(report);
+  downloadBlob(imageCanvasToPdfBlob(canvas), institutionPdfFileName(institution));
+}
+
+async function downloadInstitutionPdfBatch(institutions) {
+  if (!institutions.length) throw new Error('暂无可下载的机构数据');
+  for (const institution of institutions) {
+    downloadInstitutionPdf(institution);
+    await new Promise((resolve) => { window.setTimeout(resolve, 220); });
+  }
+}
+
 function renderSingleInstitution() {
   const week = dashboardState.selectedWeek;
   const institution = dashboardState.selectedInstitution;
@@ -1903,6 +2278,8 @@ function renderSingleInstitution() {
   )).join('');
   institutionSelect.disabled = institutions.length <= 1;
   institutionMetricSelect.disabled = yearMetrics.length <= 1;
+  downloadInstitutionPdfButton.disabled = !row;
+  downloadAllInstitutionPdfsButton.disabled = !rowsForWeek(week).length;
 
   if (!row) {
     institutionKpis.innerHTML = [
@@ -2016,6 +2393,8 @@ function renderDashboard() {
     rankingMetricSelect.disabled = true;
     institutionSelect.disabled = true;
     institutionMetricSelect.disabled = true;
+    downloadInstitutionPdfButton.disabled = true;
+    downloadAllInstitutionPdfsButton.disabled = true;
     return;
   }
   ensureDashboardSelections();
@@ -2176,6 +2555,31 @@ institutionSelect.addEventListener('change', () => {
 institutionMetricSelect.addEventListener('change', () => {
   dashboardState.selectedInstitutionMetricId = institutionMetricSelect.value;
   renderSingleInstitution();
+});
+
+downloadInstitutionPdfButton.addEventListener('click', () => {
+  try {
+    if (!dashboardState.selectedInstitution) throw new Error('请选择机构');
+    downloadInstitutionPdf(dashboardState.selectedInstitution);
+    showToast('当前机构 PDF 已开始下载');
+  } catch (error) {
+    showToast(error.message, 'error');
+  }
+});
+
+downloadAllInstitutionPdfsButton.addEventListener('click', async () => {
+  try {
+    const institutions = [...new Set(rowsForWeek(dashboardState.selectedWeek).map((row) => row.institution))]
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    downloadAllInstitutionPdfsButton.disabled = true;
+    downloadInstitutionPdfButton.disabled = true;
+    await downloadInstitutionPdfBatch(institutions);
+    showToast(`已生成 ${institutions.length} 个机构 PDF 下载`);
+  } catch (error) {
+    showToast(error.message, 'error');
+  } finally {
+    renderSingleInstitution();
+  }
 });
 
 heatmapMetricScopeSelect.addEventListener('change', () => {
