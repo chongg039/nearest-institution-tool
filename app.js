@@ -1276,6 +1276,17 @@ function metricAverageForWeek(week, metricId) {
   return average(rowsForWeek(week).map((row) => row.metrics[metricId]));
 }
 
+function metricAverageForRegionWeek(week, region, metricId) {
+  const regionLabel = region || '未标区域';
+  return average(dashboardState.rows
+    .filter((row) => (
+      row.year === dashboardState.selectedYear
+      && row.week === week
+      && (row.region || '未标区域') === regionLabel
+    ))
+    .map((row) => row.metrics[metricId]));
+}
+
 function institutionMetricForWeek(week, institution, metricId) {
   return rowsForWeek(week).find((row) => row.institution === institution)?.metrics[metricId] ?? null;
 }
@@ -1924,19 +1935,31 @@ function renderSingleInstitution() {
     .filter((metric) => metric.id !== 'keyCustomers' && row.metrics[metric.id] != null)
     .map((metric) => {
       const scale = institutionBarScale(row.metrics[metric.id], metric);
+      const regionAverage = metricAverageForRegionWeek(week, row.region, metric.id);
+      const averageScale = institutionBarScale(regionAverage, metric);
       return {
         metric,
         value: row.metrics[metric.id],
         score: scale.score,
         scaleLabel: scale.label,
+        regionAverage,
+        averageScore: averageScale.score,
       };
     });
   institutionBars.innerHTML = barMetrics.map((item) => {
     const width = Math.max(3, Math.round(item.score * 100));
+    const averagePosition = item.regionAverage == null ? null : Math.max(0, Math.min(100, Math.round(item.averageScore * 100)));
+    const averageLabelClass = averagePosition == null ? '' : averagePosition > 84 ? ' is-right' : averagePosition < 16 ? ' is-left' : '';
     return `
       <div class="institution-bar-row">
         <span title="${escapeHtml(`${item.metric.label}，刻度 ${item.scaleLabel}`)}">${escapeHtml(item.metric.label)}<small>${escapeHtml(item.scaleLabel)}</small></span>
-        <div class="rank-track"><span style="width:${width}%"></span></div>
+        <div class="rank-track institution-scale-track">
+          <span style="width:${width}%"></span>
+          ${averagePosition == null ? '' : `
+            <i class="institution-average-marker" style="left:${averagePosition}%" title="${escapeHtml(`${row.region || '未标区域'}平均值 ${formatDashboardValue(item.regionAverage, item.metric)}`)}"></i>
+            <b class="institution-average-label${averageLabelClass}" style="left:${averagePosition}%">${escapeHtml(formatDashboardValue(item.regionAverage, item.metric))}</b>
+          `}
+        </div>
         <strong>${escapeHtml(formatDashboardValue(item.value, item.metric))}</strong>
       </div>
     `;

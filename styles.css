@@ -815,7 +815,8 @@ textarea:focus {
 
 .institution-bars {
   display: grid;
-  gap: 10px;
+  gap: 20px;
+  padding-top: 8px;
 }
 
 .institution-bar-row {
@@ -842,6 +843,42 @@ textarea:focus {
 .institution-bar-row strong {
   font-size: 13px;
   text-align: right;
+}
+
+.institution-scale-track {
+  position: relative;
+  overflow: visible;
+}
+
+.institution-average-marker {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  width: 2px;
+  transform: translateX(-1px);
+  border-radius: 999px;
+  background: #b45309;
+  box-shadow: 0 0 0 2px rgba(180, 83, 9, 0.12);
+}
+
+.institution-average-label {
+  position: absolute;
+  top: -17px;
+  transform: translateX(-50%);
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.institution-average-label.is-left {
+  transform: translateX(0);
+}
+
+.institution-average-label.is-right {
+  transform: translateX(-100%);
 }
 
 .heatmap-wrap {
