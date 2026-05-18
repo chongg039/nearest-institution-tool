@@ -423,7 +423,7 @@ textarea:focus {
 .rank-header,
 .dashboard-rank-row {
   display: grid;
-  grid-template-columns: 50px minmax(86px, 126px) minmax(94px, 1fr) 76px 74px 96px;
+  grid-template-columns: 50px minmax(86px, 126px) minmax(94px, 1fr) 76px 78px 86px;
   align-items: center;
   gap: 10px;
 }
@@ -547,7 +547,7 @@ textarea:focus {
   text-align: right;
 }
 
-.dashboard-rank-row em {
+.rank-delta {
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
@@ -1137,7 +1137,7 @@ textarea:focus {
   }
 
   .dashboard-rank-row {
-    grid-template-columns: 48px minmax(80px, 1fr) 68px 54px;
+    grid-template-columns: 48px minmax(80px, 1fr) 66px 58px 50px;
   }
 
   .rank-header {
@@ -1145,7 +1145,7 @@ textarea:focus {
   }
 
   .dashboard-rank-row .rank-track,
-  .dashboard-rank-row em {
+  .dashboard-rank-row .rank-delta {
     display: none;
   }
 

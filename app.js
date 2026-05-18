@@ -1492,8 +1492,8 @@ function renderDashboardRanking() {
         <span class="rank-title" title="${escapeHtml(row.institution)}">${escapeHtml(row.institution)}</span>
         <span class="rank-track"><span style="width:${width}%"></span></span>
         <strong>${escapeHtml(formatDashboardValue(row.value, metric))}</strong>
+        <em class="rank-delta">${escapeHtml(formatDelta(row.delta, metric))}</em>
         <span class="rank-key-customers">${escapeHtml(formatDashboardValue(row.keyCustomers, keyCustomersMetric))}</span>
-        <em>${escapeHtml(formatDelta(row.delta, metric))}</em>
       </div>
     `;
   };
@@ -1516,7 +1516,7 @@ function renderDashboardRanking() {
     ${middleRows.length ? middleRows.map((row, index) => rankRowHtml(row, index + 6, `${index + 6}`)).join('') : '<div class="empty-state">暂无被折叠的中间机构</div>'}
   ` : '';
   dashboardRankList.innerHTML = [
-    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>较年初新增</span></div>',
+    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>当前数据</span><span>较年初</span><span>重点客群数</span></div>',
     renderSection('前五家', topRows, 0, 'is-top'),
     `<button class="rank-mini" type="button" data-rank-toggle="true" aria-expanded="${dashboardState.rankExpanded ? 'true' : 'false'}">
       <span class="rank-mini-bars">${miniBars}</span>
