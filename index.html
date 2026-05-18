@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260518-overview-kpi">
+    <link rel="stylesheet" href="styles.css?v=20260518-heatmap-coverage-desc">
   </head>
   <body>
     <header class="topbar">
@@ -271,8 +271,8 @@
               <label class="field compact-field">
                 <span>排序</span>
                 <select id="heatmapSortSelect">
-                  <option value="weak">低分优先</option>
-                  <option value="strong">高分优先</option>
+                  <option value="strong">综合覆盖率降序</option>
+                  <option value="weak">综合覆盖率升序</option>
                   <option value="name">机构名称</option>
                 </select>
               </label>
@@ -286,6 +286,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260518-overview-kpi" type="module"></script>
+    <script src="app.js?v=20260518-heatmap-coverage-desc" type="module"></script>
   </body>
 </html>
