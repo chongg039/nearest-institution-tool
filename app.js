@@ -120,7 +120,7 @@ const internalMetricDefinitions = [
 const allMetricDefinitions = [...metricDefinitions, ...internalMetricDefinitions];
 const combinedTrendMetricIds = ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'];
 const heatmapMetricGroups = {
-  core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
+  core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'settlement', 'loan', 'contribution', 'loanCustomers', 'loanDepositRatio'],
   contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
 };
 const rankingMetricCountMap = {
