@@ -136,6 +136,7 @@ const rankingMetricCountMap = {
   settlement: { metricId: '_settlementCount', label: '结算活跃户数' },
   loan: { metricId: 'loanCustomers', label: '贷款户数' },
   contribution: { metricId: '_depositCount', label: '存款有效户数' },
+  loanDepositRatio: { metricId: 'loanCustomers', label: '存贷比贷款户数' },
 };
 const institutionLowShareMetricIds = new Set(['acquiring', 'stateBusiness']);
 const SUBSIDY_MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -1738,10 +1739,9 @@ function selectableTrendMetrics() {
 
 function selectableRankingMetrics() {
   const yearRows = rowsForYear();
+  const rankingMetricIds = [...heatmapMetricGroups.core, ...heatmapMetricGroups.contribution];
   return availableMetrics(yearRows).filter((metric) => (
-    metric.kind === 'rate'
-    && metric.label.includes('覆盖率')
-    && rankingMetricCountMap[metric.id]
+    rankingMetricIds.includes(metric.id)
   ));
 }
 
@@ -1964,7 +1964,7 @@ function renderDashboardRanking() {
   });
 
   rankingHint.textContent = selectedMetrics.length
-    ? `按${metric.label}排序，展示${selectedMetrics.map((item) => item.label).join('、')}及对应户数`
+    ? `按${metric.label}排序，展示${selectedMetrics.map((item) => item.label).join('、')}${selectedMetrics.some((item) => rankingMetricCountMap[item.id]) ? '及对应户数' : ''}`
     : '暂无排行指标';
   if (!rows.length || !selectedMetrics.length) {
     dashboardRankList.innerHTML = '<div class="empty-state">暂无排行数据</div>';
@@ -1974,18 +1974,18 @@ function renderDashboardRanking() {
   const topRows = rows.slice(0, 5);
   const bottomRows = rows.length > 5 ? rows.slice(-5) : [];
   const middleRows = rows.length > 10 ? rows.slice(5, -5) : [];
-  const metricColumns = selectedMetrics.length * 2;
+  const metricColumns = selectedMetrics.reduce((count, selectedMetric) => count + (rankingMetricCountMap[selectedMetric.id] ? 2 : 1), 0);
   const gridStyle = `--rank-metric-cols:${metricColumns};`;
   const metricHeaderHtml = selectedMetrics.map((selectedMetric) => {
     const relatedCount = rankingMetricCountMap[selectedMetric.id];
     return `
       <span>${escapeHtml(selectedMetric.label)}</span>
-      <span>${escapeHtml(relatedCount?.label || '相关户数')}</span>
+      ${relatedCount ? `<span>${escapeHtml(relatedCount.label)}</span>` : ''}
     `;
   }).join('');
   const metricCellsHtml = (row) => row.metrics.map((item) => `
     <strong>${escapeHtml(formatDashboardValue(item.value, item.metric))}</strong>
-    <span class="rank-key-customers">${escapeHtml(formatDashboardValue(item.relatedCountValue, item.relatedCountMetric))}</span>
+    ${item.relatedCount ? `<span class="rank-key-customers">${escapeHtml(formatDashboardValue(item.relatedCountValue, item.relatedCountMetric))}</span>` : ''}
   `).join('');
   const rankRowHtml = (row, index, markerText, markerClass = '') => {
     const score = valueForScore(row.value, metric) || 0;
