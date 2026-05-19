@@ -630,8 +630,11 @@ textarea:focus {
 }
 
 .rank-table-inner {
+  --rank-marker-col: 50px;
+  --rank-title-col: 142px;
+  --rank-col-gap: 10px;
   display: grid;
-  gap: 10px;
+  gap: var(--rank-col-gap);
   width: max-content;
   min-width: 100%;
 }
@@ -639,9 +642,9 @@ textarea:focus {
 .rank-header,
 .dashboard-rank-row {
   display: grid;
-  grid-template-columns: 50px minmax(96px, 142px) minmax(84px, 1fr) repeat(var(--rank-metric-cols, 2), minmax(74px, 94px));
+  grid-template-columns: var(--rank-marker-col) var(--rank-title-col) minmax(84px, 1fr) repeat(var(--rank-metric-cols, 2), minmax(74px, 94px));
   align-items: center;
-  gap: 10px;
+  gap: var(--rank-col-gap);
 }
 
 .rank-header {
@@ -712,6 +715,9 @@ textarea:focus {
 }
 
 .rank-marker {
+  position: sticky;
+  left: 0;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -734,10 +740,34 @@ textarea:focus {
 }
 
 .rank-title {
+  position: sticky;
+  left: calc(var(--rank-marker-col) + var(--rank-col-gap));
+  z-index: 3;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  background: #fff;
+  box-shadow: 8px 0 10px -10px rgba(15, 23, 42, 0.42);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 650;
+}
+
+.rank-header > span:nth-child(1),
+.rank-header > span:nth-child(2) {
+  position: sticky;
+  z-index: 4;
+  background: #fff;
+}
+
+.rank-header > span:nth-child(1) {
+  left: 0;
+}
+
+.rank-header > span:nth-child(2) {
+  left: calc(var(--rank-marker-col) + var(--rank-col-gap));
+  box-shadow: 8px 0 10px -10px rgba(15, 23, 42, 0.42);
 }
 
 .rank-track {
