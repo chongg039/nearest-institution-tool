@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260518-region-average-scale">
+    <link rel="stylesheet" href="styles.css?v=20260519-subsidy-audit">
   </head>
   <body>
     <header class="topbar">
@@ -17,6 +17,7 @@
         <nav class="mode-switch" aria-label="功能切换">
           <button class="mode-button is-active" type="button" data-mode="dashboard">周度指标驾驶舱</button>
           <button class="mode-button" type="button" data-mode="matcher">最近机构匹配</button>
+          <button class="mode-button" type="button" data-mode="subsidy">贴息资料审核</button>
         </nav>
         <div class="status-pill" id="privacyStatus">不存储数据</div>
       </div>
@@ -120,6 +121,46 @@
           <h3>数据预览</h3>
           <div class="table-wrap">
             <table class="preview-table" id="previewTable"></table>
+          </div>
+        </section>
+      </main>
+    </section>
+
+    <section class="view" id="subsidyView" aria-labelledby="subsidyTitle">
+      <main class="subsidy-shell">
+        <section class="panel panel-full">
+          <div class="panel-head">
+            <div>
+              <h2 id="subsidyTitle">服务业贷款贴息资料审核</h2>
+              <p class="panel-note">批量上传机构报送 ZIP，自动核验借据编号文件夹、材料命名、格式和单个文件 10MB 限制，并生成电子台账。</p>
+            </div>
+            <a class="ghost-link is-disabled" id="subsidyDownloadLink" download="服务业贷款贴息资料审核台账.csv">下载电子台账</a>
+          </div>
+          <form id="subsidyForm" class="subsidy-form">
+            <label class="field">
+              <span>机构报送压缩包 ZIP</span>
+              <input id="subsidyZipFile" type="file" accept=".zip,application/zip,application/x-zip-compressed">
+            </label>
+            <button class="primary-button" id="subsidyAuditButton" type="submit">开始审核</button>
+            <div class="source-note" id="subsidySource">未载入资料</div>
+          </form>
+          <div class="requirement-grid" aria-label="审核要求">
+            <div><strong>文件夹</strong><span>以借据编号命名</span></div>
+            <div><strong>格式</strong><span>png / jpg / pdf</span></div>
+            <div><strong>大小</strong><span>单个材料不超过 10MB</span></div>
+            <div><strong>还款凭证</strong><span>未还款可暂缺，需人工确认</span></div>
+          </div>
+          <div class="metrics subsidy-metrics" id="subsidyMetrics"></div>
+        </section>
+
+        <section class="panel panel-full">
+          <div class="panel-head">
+            <h2>审核明细</h2>
+            <div class="quiet-label" id="subsidyHint">等待上传 ZIP</div>
+          </div>
+          <div class="subsidy-summary" id="subsidySummary"></div>
+          <div class="table-wrap">
+            <table class="preview-table subsidy-table" id="subsidyTable"></table>
           </div>
         </section>
       </main>
@@ -289,6 +330,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260518-region-average-scale" type="module"></script>
+    <script src="app.js?v=20260519-subsidy-audit" type="module"></script>
   </body>
 </html>

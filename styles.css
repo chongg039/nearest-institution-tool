@@ -362,6 +362,80 @@ textarea:focus {
   margin: 22px auto;
 }
 
+.subsidy-shell {
+  display: grid;
+  gap: 20px;
+  width: min(1280px, calc(100vw - 40px));
+  margin: 22px auto;
+}
+
+.subsidy-form {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) auto minmax(220px, 0.8fr);
+  align-items: end;
+  gap: 14px;
+}
+
+.requirement-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.requirement-grid div {
+  min-height: 70px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+  padding: 12px;
+}
+
+.requirement-grid strong {
+  display: block;
+  font-size: 15px;
+}
+
+.requirement-grid span {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+}
+
+.subsidy-summary {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.audit-alert {
+  border: 1px solid rgba(180, 83, 9, 0.35);
+  border-radius: 8px;
+  background: rgba(180, 83, 9, 0.08);
+  color: var(--warn);
+  padding: 10px 12px;
+}
+
+.subsidy-table td {
+  max-width: 240px;
+}
+
+.audit-status {
+  font-weight: 700;
+}
+
+.audit-status.is-pass {
+  color: var(--accent);
+}
+
+.audit-status.is-pending {
+  color: var(--warn);
+}
+
+.audit-status.is-fail {
+  color: #b91c1c;
+}
+
 .dashboard-control .panel-head {
   align-items: flex-start;
 }
@@ -1168,6 +1242,12 @@ textarea:focus {
     gap: 12px;
   }
 
+  .subsidy-shell {
+    width: calc(100vw - 24px);
+    margin: 12px auto;
+    gap: 12px;
+  }
+
   .dashboard-control .panel-head,
   .dashboard-actions,
   .panel-tools {
@@ -1185,7 +1265,9 @@ textarea:focus {
 
   .dashboard-toolbar,
   .dashboard-grid,
-  .institution-layout {
+  .institution-layout,
+  .subsidy-form,
+  .requirement-grid {
     grid-template-columns: 1fr;
   }
 

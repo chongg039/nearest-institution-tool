@@ -23,6 +23,16 @@ const privacyStatus = document.querySelector('#privacyStatus');
 const modeButtons = [...document.querySelectorAll('.mode-button')];
 const matcherView = document.querySelector('#matcherView');
 const dashboardView = document.querySelector('#dashboardView');
+const subsidyView = document.querySelector('#subsidyView');
+const subsidyForm = document.querySelector('#subsidyForm');
+const subsidyZipFileInput = document.querySelector('#subsidyZipFile');
+const subsidyAuditButton = document.querySelector('#subsidyAuditButton');
+const subsidyDownloadLink = document.querySelector('#subsidyDownloadLink');
+const subsidySource = document.querySelector('#subsidySource');
+const subsidyMetrics = document.querySelector('#subsidyMetrics');
+const subsidyHint = document.querySelector('#subsidyHint');
+const subsidySummary = document.querySelector('#subsidySummary');
+const subsidyTable = document.querySelector('#subsidyTable');
 const dashboardFileInput = document.querySelector('#dashboardFile');
 const sampleDashboardButton = document.querySelector('#sampleDashboardButton');
 const yearSelect = document.querySelector('#yearSelect');
@@ -58,6 +68,7 @@ const CITY = '成都';
 const CONCURRENCY = 2;
 const amapJsonpBase = 'https://restapi.amap.com/v3';
 let outputUrl = '';
+let subsidyOutputUrl = '';
 let toastTimer = null;
 let dashboardState = {
   rows: [],
@@ -114,6 +125,32 @@ const heatmapMetricGroups = {
   contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
 };
 const institutionLowShareMetricIds = new Set(['acquiring', 'stateBusiness']);
+const SUBSIDY_MAX_FILE_SIZE = 10 * 1024 * 1024;
+const subsidyAllowedExtensions = ['png', 'jpg', 'pdf'];
+const subsidyRequiredDocuments = [
+  { key: 'businessLicense', label: '营业执照', baseName: '营业执照', required: true },
+  { key: 'accountPermit', label: '开户许可证', baseName: '开户许可证', required: true },
+  { key: 'loanContract', label: '贷款合同', baseName: '贷款合同', required: true },
+  { key: 'loanVoucher', label: '放款凭证', baseName: '放款凭证', required: true },
+  { key: 'repaymentVoucher', label: '还款凭证', baseName: '还款凭证', required: false },
+  { key: 'taxReturn', label: '纳税申报表', baseName: '纳税申报表', required: true },
+  { key: 'loanUse', label: '贷款用途', baseName: '贷款用途', required: true },
+  { key: 'subsidyAgreement', label: '贴息补充协议', baseName: '服务业经营主体贷款财政贴息服务协议', required: true },
+];
+const subsidyReportHeader = [
+  '借据编号',
+  '审核状态',
+  '必备材料齐全',
+  '文件格式合规',
+  '文件大小合规',
+  ...subsidyRequiredDocuments.map((item) => item.label),
+  '缺失材料',
+  '需人工确认',
+  '命名或格式问题',
+  '超限文件',
+  '其他文件',
+  '文件夹路径',
+];
 
 function showToast(message, type = 'info') {
   toast.textContent = message;
@@ -215,6 +252,307 @@ function csvField(value) {
 
 function serializeCsv(rows) {
   return `${rows.map((row) => row.map(csvField).join(',')).join('\r\n')}\r\n`;
+}
+
+function decodeZipFileName(bytes, useUtf8) {
+  if (!bytes.length) return '';
+  const decoders = useUtf8 ? ['utf-8', 'gb18030'] : ['utf-8', 'gb18030'];
+  let fallback = '';
+  for (const encoding of decoders) {
+    try {
+      const decoded = new TextDecoder(encoding).decode(bytes);
+      if (!decoded.includes('\uFFFD')) return decoded;
+      fallback ||= decoded;
+    } catch {
+      // Try the next decoder; older browsers may not support gb18030.
+    }
+  }
+  return fallback || Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+}
+
+function parseZipCentralDirectory(arrayBuffer) {
+  const view = new DataView(arrayBuffer);
+  const bytes = new Uint8Array(arrayBuffer);
+  const minEocdOffset = Math.max(0, bytes.length - 22 - 65535);
+  let eocdOffset = -1;
+  for (let index = bytes.length - 22; index >= minEocdOffset; index -= 1) {
+    if (view.getUint32(index, true) === 0x06054b50) {
+      eocdOffset = index;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error('无法读取 ZIP 目录，请确认文件未损坏');
+
+  const entryCount = view.getUint16(eocdOffset + 10, true);
+  const centralDirectoryOffset = view.getUint32(eocdOffset + 16, true);
+  const entries = [];
+  let offset = centralDirectoryOffset;
+  for (let entryIndex = 0; entryIndex < entryCount; entryIndex += 1) {
+    if (view.getUint32(offset, true) !== 0x02014b50) throw new Error('ZIP 目录结构异常');
+    const flags = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 20, true);
+    const uncompressedSize = view.getUint32(offset + 24, true);
+    const fileNameLength = view.getUint16(offset + 28, true);
+    const extraLength = view.getUint16(offset + 30, true);
+    const commentLength = view.getUint16(offset + 32, true);
+    const nameStart = offset + 46;
+    const nameBytes = bytes.slice(nameStart, nameStart + fileNameLength);
+    const rawName = decodeZipFileName(nameBytes, Boolean(flags & 0x0800));
+    const name = rawName.replace(/\\/g, '/').replace(/^\/+/, '');
+    if (name) {
+      entries.push({
+        name,
+        compressedSize,
+        uncompressedSize,
+        isDirectory: name.endsWith('/'),
+      });
+    }
+    offset = nameStart + fileNameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function isIgnoredZipEntry(entryName) {
+  return entryName
+    .split('/')
+    .some((part) => !part || part === '__MACOSX' || part === '.DS_Store' || part.startsWith('._'));
+}
+
+function stripZipWrapper(entries) {
+  const files = entries.filter((entry) => !entry.isDirectory && !isIgnoredZipEntry(entry.name));
+  const roots = [...new Set(files.map((entry) => entry.name.split('/')[0]))];
+  if (roots.length !== 1) return files;
+
+  const root = roots[0];
+  const expectedNames = new Set(subsidyRequiredDocuments.map((item) => item.baseName));
+  const directExpectedFile = files.some((entry) => {
+    const parts = entry.name.split('/');
+    if (parts.length !== 2) return false;
+    const { baseName } = splitFileName(parts[1]);
+    return expectedNames.has(baseName);
+  });
+  if (directExpectedFile) return files;
+
+  return files.map((entry) => ({
+    ...entry,
+    name: entry.name.startsWith(`${root}/`) ? entry.name.slice(root.length + 1) : entry.name,
+  }));
+}
+
+function splitFileName(fileName) {
+  const index = fileName.lastIndexOf('.');
+  if (index <= 0) return { baseName: fileName, extension: '' };
+  return {
+    baseName: fileName.slice(0, index),
+    extension: fileName.slice(index + 1).toLowerCase(),
+  };
+}
+
+function formatFileSize(bytes) {
+  const number = Number(bytes || 0);
+  if (number >= 1024 * 1024) return `${(number / 1024 / 1024).toFixed(1)}MB`;
+  if (number >= 1024) return `${Math.round(number / 1024)}KB`;
+  return `${number}B`;
+}
+
+function auditSubsidyGroup(loanNumber, files) {
+  const directFiles = [];
+  const nestedFiles = [];
+  for (const file of files) {
+    const parts = file.name.split('/');
+    if (parts.length === 2) directFiles.push({ ...file, fileName: parts[1] });
+    else nestedFiles.push(file.name);
+  }
+
+  const missing = [];
+  const manualChecks = [];
+  const namingIssues = nestedFiles.map((name) => `材料不在借据编号文件夹第一层：${name}`);
+  const sizeIssues = [];
+  const otherFiles = [];
+  const documentCells = {};
+  let requiredComplete = true;
+  let formatOk = true;
+  let sizeOk = true;
+
+  for (const documentRule of subsidyRequiredDocuments) {
+    const candidates = directFiles.filter((file) => splitFileName(file.fileName).baseName === documentRule.baseName);
+    const validExtensionCandidates = candidates.filter((file) => subsidyAllowedExtensions.includes(splitFileName(file.fileName).extension));
+    const oversizedCandidates = validExtensionCandidates.filter((file) => file.uncompressedSize > SUBSIDY_MAX_FILE_SIZE);
+    let cellValue = '缺失';
+
+    if (validExtensionCandidates.length > 0) {
+      cellValue = validExtensionCandidates.map((file) => file.fileName).join('；');
+      if (validExtensionCandidates.length > 1) {
+        namingIssues.push(`${documentRule.label}重复提交 ${validExtensionCandidates.length} 份`);
+        formatOk = false;
+      }
+      if (oversizedCandidates.length > 0) {
+        sizeOk = false;
+        for (const file of oversizedCandidates) {
+          sizeIssues.push(`${file.fileName} ${formatFileSize(file.uncompressedSize)}`);
+        }
+      }
+    } else if (candidates.length > 0) {
+      cellValue = `格式错误：${candidates.map((file) => file.fileName).join('；')}`;
+      namingIssues.push(`${documentRule.label}格式错误：${candidates.map((file) => file.fileName).join('、')}`);
+      formatOk = false;
+    } else if (documentRule.required) {
+      missing.push(documentRule.label);
+      requiredComplete = false;
+    } else {
+      manualChecks.push(`${documentRule.label}缺失，请确认是否未还款`);
+    }
+
+    if (documentRule.required && !validExtensionCandidates.length) requiredComplete = false;
+    documentCells[documentRule.label] = cellValue;
+  }
+
+  const expectedBaseNames = new Set(subsidyRequiredDocuments.map((item) => item.baseName));
+  for (const file of directFiles) {
+    const { baseName, extension } = splitFileName(file.fileName);
+    if (expectedBaseNames.has(baseName)) continue;
+    otherFiles.push(file.fileName);
+    if (!subsidyAllowedExtensions.includes(extension)) {
+      namingIssues.push(`其他文件格式不符合要求：${file.fileName}`);
+      formatOk = false;
+    }
+    if (file.uncompressedSize > SUBSIDY_MAX_FILE_SIZE) {
+      sizeIssues.push(`${file.fileName} ${formatFileSize(file.uncompressedSize)}`);
+      sizeOk = false;
+    }
+  }
+
+  let status = '通过';
+  if (!requiredComplete || !formatOk || !sizeOk) status = '不通过';
+  else if (manualChecks.length) status = '待确认';
+
+  return {
+    loanNumber,
+    status,
+    requiredComplete,
+    formatOk,
+    sizeOk,
+    documentCells,
+    missing,
+    manualChecks,
+    namingIssues,
+    sizeIssues,
+    otherFiles,
+    folderPath: loanNumber,
+  };
+}
+
+function analyzeSubsidyZipEntries(entries) {
+  const files = stripZipWrapper(entries);
+  if (!files.length) throw new Error('ZIP 内没有可审核的文件');
+
+  const groups = new Map();
+  const rootFiles = [];
+  for (const file of files) {
+    const parts = file.name.split('/').filter(Boolean);
+    if (parts.length < 2) {
+      rootFiles.push(file.name);
+      continue;
+    }
+    const loanNumber = parts[0].trim();
+    if (!loanNumber) {
+      rootFiles.push(file.name);
+      continue;
+    }
+    const group = groups.get(loanNumber) || [];
+    group.push({ ...file, name: parts.join('/') });
+    groups.set(loanNumber, group);
+  }
+
+  const rows = [...groups.entries()]
+    .map(([loanNumber, groupFiles]) => auditSubsidyGroup(loanNumber, groupFiles))
+    .sort((a, b) => a.loanNumber.localeCompare(b.loanNumber, 'zh-CN'));
+
+  if (!rows.length) throw new Error('未识别到以借据编号命名的材料文件夹');
+  const rootIssues = rootFiles.map((name) => `未放入借据编号文件夹：${name}`);
+  const stats = {
+    total: rows.length,
+    passed: rows.filter((row) => row.status === '通过').length,
+    pending: rows.filter((row) => row.status === '待确认').length,
+    failed: rows.filter((row) => row.status === '不通过').length,
+    rootIssues,
+  };
+  return { rows, stats };
+}
+
+async function auditSubsidyZip(file) {
+  if (!file) throw new Error('请选择机构报送 ZIP');
+  if (!/\.zip$/i.test(file.name)) throw new Error('仅支持 ZIP 压缩包');
+  const entries = parseZipCentralDirectory(await file.arrayBuffer());
+  return analyzeSubsidyZipEntries(entries);
+}
+
+function subsidyRowToCsvRow(row) {
+  return [
+    row.loanNumber,
+    row.status,
+    row.requiredComplete ? '是' : '否',
+    row.formatOk ? '是' : '否',
+    row.sizeOk ? '是' : '否',
+    ...subsidyRequiredDocuments.map((item) => row.documentCells[item.label] || ''),
+    row.missing.join('；'),
+    row.manualChecks.join('；'),
+    row.namingIssues.join('；'),
+    row.sizeIssues.join('；'),
+    row.otherFiles.join('；'),
+    row.folderPath,
+  ];
+}
+
+function subsidyAnalysisToCsv(analysis) {
+  return serializeCsv([subsidyReportHeader, ...analysis.rows.map(subsidyRowToCsvRow)]);
+}
+
+function renderSubsidyMetrics(stats = {}) {
+  const values = [
+    [stats.total || 0, '借据文件夹'],
+    [stats.passed || 0, '通过'],
+    [stats.pending || 0, '待确认'],
+    [stats.failed || 0, '不通过'],
+  ];
+  subsidyMetrics.innerHTML = values
+    .map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`)
+    .join('');
+}
+
+function renderSubsidyAnalysis(analysis) {
+  renderSubsidyMetrics(analysis.stats);
+  subsidyHint.textContent = `已生成 ${analysis.rows.length} 条电子台账记录`;
+  subsidySummary.innerHTML = analysis.stats.rootIssues.length
+    ? `<div class="audit-alert">${escapeHtml(analysis.stats.rootIssues.join('；'))}</div>`
+    : '';
+
+  const previewRows = analysis.rows.slice(0, 80);
+  const statusClass = {
+    通过: 'is-pass',
+    待确认: 'is-pending',
+    不通过: 'is-fail',
+  };
+  const bodyHtml = previewRows.map((row) => {
+    const csvRow = subsidyRowToCsvRow(row);
+    return `<tr>${csvRow.map((cell, index) => {
+      const className = index === 1 ? ` class="audit-status ${statusClass[row.status] || ''}"` : '';
+      return `<td${className} title="${escapeHtml(cell)}">${escapeHtml(cell || '-')}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  subsidyTable.innerHTML = `
+    <thead><tr>${subsidyReportHeader.map((name) => `<th>${escapeHtml(name)}</th>`).join('')}</tr></thead>
+    <tbody>${bodyHtml}</tbody>
+  `;
+}
+
+function resetSubsidyView() {
+  renderSubsidyMetrics();
+  subsidyHint.textContent = '等待上传 ZIP';
+  subsidySummary.innerHTML = '';
+  subsidyTable.innerHTML = '';
+  subsidySource.textContent = '未载入资料';
+  subsidyDownloadLink.classList.add('is-disabled');
 }
 
 function getColumn(header, names, fallbackIndex = -1) {
@@ -763,8 +1101,10 @@ function renderResolvedAnalysis(analysis) {
 
 function setMode(mode) {
   const isDashboard = mode === 'dashboard';
-  matcherView.classList.toggle('is-active', !isDashboard);
+  const isSubsidy = mode === 'subsidy';
+  matcherView.classList.toggle('is-active', !isDashboard && !isSubsidy);
   dashboardView.classList.toggle('is-active', isDashboard);
+  subsidyView.classList.toggle('is-active', isSubsidy);
   modeButtons.forEach((button) => {
     button.classList.toggle('is-active', button.dataset.mode === mode);
   });
@@ -2636,6 +2976,30 @@ batchForm.addEventListener('submit', async (event) => {
   }
 });
 
+subsidyForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  try {
+    const file = subsidyZipFileInput.files?.[0];
+    subsidyAuditButton.disabled = true;
+    subsidyDownloadLink.classList.add('is-disabled');
+    subsidySource.textContent = file ? `正在审核：${file.name}` : '未载入资料';
+    const analysis = await auditSubsidyZip(file);
+    renderSubsidyAnalysis(analysis);
+    const csv = subsidyAnalysisToCsv(analysis);
+    if (subsidyOutputUrl) URL.revokeObjectURL(subsidyOutputUrl);
+    subsidyOutputUrl = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    subsidyDownloadLink.href = subsidyOutputUrl;
+    subsidyDownloadLink.classList.remove('is-disabled');
+    subsidySource.textContent = `${file.name}，${analysis.rows.length} 个借据文件夹`;
+    showToast('贴息资料审核完成');
+  } catch (error) {
+    subsidyHint.textContent = error.message;
+    showToast(error.message, 'error');
+  } finally {
+    subsidyAuditButton.disabled = false;
+  }
+});
+
 queryForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
@@ -2668,6 +3032,7 @@ queryForm.addEventListener('submit', async (event) => {
 
 setMetrics();
 resetResolvedView();
+resetSubsidyView();
 renderDashboard();
 
 if (window.desktopRuntime?.isDesktop) {
