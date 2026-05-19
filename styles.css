@@ -656,6 +656,17 @@ textarea:focus {
   padding-bottom: 6px;
 }
 
+.rank-freeze-mask {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  grid-column: 1 / 3;
+  grid-row: 1;
+  align-self: stretch;
+  background: #fff;
+  box-shadow: var(--rank-col-gap) 0 0 #fff, 8px 0 10px -10px rgba(15, 23, 42, 0.42);
+}
+
 .rank-section-title {
   grid-column: 1 / -1;
   margin-top: 4px;
@@ -717,7 +728,9 @@ textarea:focus {
 .rank-marker {
   position: sticky;
   left: 0;
-  z-index: 5;
+  z-index: 6;
+  grid-column: 1;
+  grid-row: 1;
   align-self: stretch;
   display: inline-flex;
   align-items: center;
@@ -743,35 +756,44 @@ textarea:focus {
 .rank-title {
   position: sticky;
   left: calc(var(--rank-marker-col) + var(--rank-col-gap));
-  z-index: 5;
+  z-index: 6;
+  grid-column: 2;
+  grid-row: 1;
   align-self: stretch;
   display: flex;
   align-items: center;
-  background: #fff;
-  box-shadow: calc(var(--rank-col-gap) * -1) 0 0 #fff, 8px 0 10px -10px rgba(15, 23, 42, 0.42);
+  background: transparent;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 650;
 }
 
-.rank-header > span:nth-child(1),
-.rank-header > span:nth-child(2) {
+.rank-head-marker,
+.rank-head-title {
   position: sticky;
-  z-index: 6;
+  z-index: 7;
   align-self: stretch;
   display: flex;
   align-items: center;
-  background: #fff;
+  grid-row: 1;
+  background: transparent;
 }
 
-.rank-header > span:nth-child(1) {
+.rank-head-marker {
+  grid-column: 1;
   left: 0;
 }
 
-.rank-header > span:nth-child(2) {
+.rank-head-title {
+  grid-column: 2;
   left: calc(var(--rank-marker-col) + var(--rank-col-gap));
-  box-shadow: calc(var(--rank-col-gap) * -1) 0 0 #fff, 8px 0 10px -10px rgba(15, 23, 42, 0.42);
+}
+
+.rank-head-track,
+.dashboard-rank-row > .rank-track {
+  grid-column: 3;
+  grid-row: 1;
 }
 
 .rank-track {

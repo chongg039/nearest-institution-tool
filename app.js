@@ -1998,6 +1998,7 @@ function renderDashboardRanking() {
     const width = Math.max(3, Math.round((score / maxScore) * 100));
     return `
       <div class="dashboard-rank-row" style="${gridStyle}">
+        <span class="rank-freeze-mask" aria-hidden="true"></span>
         <span class="rank-marker ${markerClass}">${escapeHtml(markerText)}</span>
         <span class="rank-title" title="${escapeHtml(row.institution)}">${escapeHtml(row.institution)}</span>
         <span class="rank-track"><span style="width:${width}%"></span></span>
@@ -2026,7 +2027,13 @@ function renderDashboardRanking() {
   dashboardRankList.innerHTML = [
     `<div class="rank-table-scroll">
       <div class="rank-table-inner" style="${gridStyle}">
-        <div class="rank-header" style="${gridStyle}"><span>排名</span><span>机构</span><span>表现</span>${metricHeaderHtml}</div>
+        <div class="rank-header" style="${gridStyle}">
+          <span class="rank-freeze-mask" aria-hidden="true"></span>
+          <span class="rank-head-marker">排名</span>
+          <span class="rank-head-title">机构</span>
+          <span class="rank-head-track">表现</span>
+          ${metricHeaderHtml}
+        </div>
         ${renderSection('前五家', topRows, 0, 'is-top')}
         <button class="rank-mini" type="button" data-rank-toggle="true" aria-expanded="${dashboardState.rankExpanded ? 'true' : 'false'}">
           <span class="rank-mini-bars">${miniBars}</span>
