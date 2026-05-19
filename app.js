@@ -70,6 +70,7 @@ const amapJsonpBase = 'https://restapi.amap.com/v3';
 let outputUrl = '';
 let subsidyOutputUrl = '';
 let toastTimer = null;
+const defaultTrendMetricIds = ['coverage', 'highPenetration', 'settlement', 'contribution', 'loanCustomers', 'loanDepositRatio'];
 let dashboardState = {
   rows: [],
   years: [],
@@ -83,7 +84,7 @@ let dashboardState = {
   overviewScope: 'all',
   rankingScope: 'all',
   trendChartType: 'combo',
-  selectedTrendMetricIds: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'],
+  selectedTrendMetricIds: [...defaultTrendMetricIds],
   selectedInstitution: '',
   selectedInstitutionMetricId: 'coverage',
   heatmapMetricScope: 'core',
@@ -121,7 +122,6 @@ const internalMetricDefinitions = [
 ];
 
 const allMetricDefinitions = [...metricDefinitions, ...internalMetricDefinitions];
-const combinedTrendMetricIds = ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'];
 const heatmapMetricGroups = {
   core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
   contribution: ['settlement', 'contribution', 'loanCustomers', 'loanDepositRatio'],
@@ -1748,7 +1748,8 @@ function selectableRankingMetrics() {
 function ensureTrendMetricSelection() {
   const allowedIds = selectableTrendMetrics().map((metric) => metric.id);
   const selected = dashboardState.selectedTrendMetricIds.filter((id) => allowedIds.includes(id));
-  dashboardState.selectedTrendMetricIds = selected.length ? selected : allowedIds.slice(0, 5);
+  const defaultSelected = defaultTrendMetricIds.filter((id) => allowedIds.includes(id));
+  dashboardState.selectedTrendMetricIds = selected.length ? selected : defaultSelected.length ? defaultSelected : allowedIds.slice(0, 6);
 }
 
 function ensureRankingMetricSelection() {
@@ -2899,7 +2900,7 @@ function loadDashboardData(dataset) {
     trendChartType: dashboardState.trendChartType || 'combo',
     selectedTrendMetricIds: dashboardState.selectedTrendMetricIds?.length
       ? dashboardState.selectedTrendMetricIds
-      : ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'],
+      : [...defaultTrendMetricIds],
     selectedInstitution: institutions.includes(dashboardState.selectedInstitution)
       ? dashboardState.selectedInstitution
       : institutions[0] || '',
