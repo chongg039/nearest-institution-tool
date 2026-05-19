@@ -81,7 +81,7 @@ let dashboardState = {
   overviewScope: 'all',
   rankingScope: 'all',
   trendChartType: 'combo',
-  selectedTrendMetricIds: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
+  selectedTrendMetricIds: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'],
   selectedInstitution: '',
   selectedInstitutionMetricId: 'coverage',
   heatmapMetricScope: 'core',
@@ -92,11 +92,11 @@ let dashboardState = {
 
 const metricDefinitions = [
   { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标', '年初覆盖率', '年初综合覆盖率'], kind: 'rate', target: 0.65 },
+  { id: 'highPenetration', label: '高渗透覆盖率', aliases: ['高渗透客户占比', '高渗透客户户数占比', '高渗透覆盖率'], kind: 'rate', target: 0.35 },
   { id: 'bill', label: '电票覆盖率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率', '电票结算覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率', '收单覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率', '代发覆盖率'], kind: 'rate', target: 0.5 },
   { id: 'stateBusiness', label: '国业覆盖率', aliases: ['国业业务穿透率', '国业业务渗透率', '国业覆盖率'], kind: 'rate', target: 0.45 },
-  { id: 'highPenetration', label: '高渗透客户占比', aliases: ['高渗透客户占比', '高渗透客户户数占比', '高渗透覆盖率'], kind: 'rate', target: 0.35 },
   { id: 'settlement', label: '结算活跃率', aliases: ['对公结算业务', '对公结算业务覆盖率', '对公结算渗透率', '结算活跃率'], kind: 'rate', target: 0.55 },
   { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
   { id: 'contribution', label: '存款有效率', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
@@ -118,9 +118,9 @@ const internalMetricDefinitions = [
 ];
 
 const allMetricDefinitions = [...metricDefinitions, ...internalMetricDefinitions];
-const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'];
+const combinedTrendMetricIds = ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'];
 const heatmapMetricGroups = {
-  core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
+  core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
   contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
 };
 const rankingMetricCountMap = {
@@ -1844,7 +1844,7 @@ function renderDashboardKpis() {
     [hasKeyCustomers ? `${formatDashboardValue(keyCustomers, keyCustomersMetric)} / ${formatDelta(keyCustomersDelta, keyCustomersMetric)}` : '-', '重点客群数量 / 较年初新增数'],
     [`${formatDashboardValue(coverage, coverageMetric)} / ${formatDelta(coverageDelta, coverageMetric)}`, '综合业务覆盖率 / 较年初新增'],
     [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
-    [formatDashboardValue(highPenetration, highPenetrationMetric), '高渗透客户占比'],
+    [formatDashboardValue(highPenetration, highPenetrationMetric), highPenetrationMetric.label],
     [metricWeakness?.metric.label || '-', '最低短板指标'],
   ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
 }
@@ -2712,7 +2712,7 @@ function renderDashboard() {
       ['-', '重点客群数量 / 较年初新增数'],
       ['-', '综合业务覆盖率 / 较年初新增'],
       ['-', '达标机构数'],
-      ['-', '高渗透客户占比'],
+      ['-', '高渗透覆盖率'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     dashboardRankList.innerHTML = '<div class="empty-state">上传 Excel/CSV 或生成模拟数据</div>';
@@ -2788,7 +2788,7 @@ function loadDashboardData(dataset) {
     trendChartType: dashboardState.trendChartType || 'combo',
     selectedTrendMetricIds: dashboardState.selectedTrendMetricIds?.length
       ? dashboardState.selectedTrendMetricIds
-      : ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
+      : ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'],
     selectedInstitution: institutions.includes(dashboardState.selectedInstitution)
       ? dashboardState.selectedInstitution
       : institutions[0] || '',
