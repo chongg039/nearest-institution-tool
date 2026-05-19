@@ -1521,6 +1521,28 @@ function inferDashboardComparisonYear(tables) {
   return years.length ? Math.max(...years) : null;
 }
 
+function dashboardPeriodName(year, week) {
+  const safeYear = String(year || '').trim();
+  const safeWeek = String(week || '').trim();
+  if (!safeWeek) return safeYear || '未标周期';
+  if (safeWeek === '年初') return safeYear ? `${safeYear}年初` : '年初';
+  if (safeYear && !safeWeek.includes(safeYear)) return `${safeYear}年${safeWeek}`;
+  return safeWeek;
+}
+
+function dashboardDataSourceName(rows, tableCount = 1) {
+  const periodRows = rows.filter((row) => row.week && row.week !== '年初');
+  const sourceRows = periodRows.length ? periodRows : rows;
+  const periods = [...new Set(sourceRows.map((row) => dashboardPeriodName(row.year, row.week)))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const hasBaseline = rows.some((row) => row.week === '年初');
+  const notes = [];
+  if (hasBaseline && periodRows.length) notes.push('含年初基准');
+  if (tableCount > 1) notes.push(`${tableCount}个工作表`);
+  return `指标数据：${periods.join('、') || '未标周期'}${notes.length ? `（${notes.join('，')}）` : ''}`;
+}
+
 function parseDashboardTables(tables, fileName = '') {
   if (!tables.length) throw new Error('指标文件没有可读取的数据表');
   const comparisonYear = inferDashboardComparisonYear(tables);
@@ -1555,9 +1577,7 @@ function parseDashboardTables(tables, fileName = '') {
     rows,
     years: [...new Set(rows.map((row) => row.year))].sort(),
     weeks: sortWeeks([...new Set(rows.map((row) => row.week))]),
-    source: parsedParts.length > 1
-      ? `上传文件：${fileName || tables[0]?.fileName || ''}（已合并 ${parsedParts.length} 个工作表）`
-      : parsedParts[0].source,
+    source: dashboardDataSourceName(rows, parsedParts.length),
   };
 }
 
