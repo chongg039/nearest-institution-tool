@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>企业最近机构匹配</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="styles.css?v=20260519-overview-institution-list">
+    <link rel="stylesheet" href="styles.css?v=20260519-ranking-multi-columns">
   </head>
   <body>
     <header class="topbar">
@@ -226,10 +226,10 @@
             <div class="panel-head">
               <h2>机构表现排行</h2>
               <div class="panel-tools">
-                <label class="field compact-field">
+                <div class="field compact-field ranking-metric-field">
                   <span>排行指标</span>
-                  <select id="rankingMetricSelect"></select>
-                </label>
+                  <div class="metric-picker ranking-metric-picker" id="rankingMetricPicker"></div>
+                </div>
                 <label class="field compact-field">
                   <span>区域类型</span>
                   <select id="rankingRegionSelect"></select>
@@ -323,6 +323,6 @@
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="vendor/xlsx.full.min.js"></script>
-    <script src="app.js?v=20260519-overview-institution-list" type="module"></script>
+    <script src="app.js?v=20260519-ranking-multi-columns" type="module"></script>
   </body>
 </html>
