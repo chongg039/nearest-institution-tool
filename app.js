@@ -1838,6 +1838,8 @@ function renderDashboardKpis() {
   const hasKeyCustomers = latestRows.some((row) => row.metrics.keyCustomers != null);
   const keyCustomersDelta = hasKeyCustomers && baseKeyCustomers != null ? keyCustomers - baseKeyCustomers : null;
   const highPenetration = weightedHighPenetration(latestRows);
+  const baseHighPenetration = baseRows.length ? weightedHighPenetration(baseRows) : null;
+  const highPenetrationDelta = highPenetration != null && baseHighPenetration != null ? highPenetration - baseHighPenetration : null;
   const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
   const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
   const metricWeakness = availableMetrics(latestRows).map((metric) => ({
@@ -1849,7 +1851,7 @@ function renderDashboardKpis() {
     [hasKeyCustomers ? `${formatDashboardValue(keyCustomers, keyCustomersMetric)} / ${formatDelta(keyCustomersDelta, keyCustomersMetric)}` : '-', '重点客群数量 / 较年初新增数'],
     [`${formatDashboardValue(coverage, coverageMetric)} / ${formatDelta(coverageDelta, coverageMetric)}`, '综合业务覆盖率 / 较年初新增'],
     [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
-    [formatDashboardValue(highPenetration, highPenetrationMetric), highPenetrationMetric.label],
+    [`${formatDashboardValue(highPenetration, highPenetrationMetric)} / ${formatDelta(highPenetrationDelta, highPenetrationMetric)}`, `${highPenetrationMetric.label} / 较年初新增`],
     [metricWeakness?.metric.label || '-', '最低短板指标'],
   ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
 }
@@ -2717,7 +2719,7 @@ function renderDashboard() {
       ['-', '重点客群数量 / 较年初新增数'],
       ['-', '综合业务覆盖率 / 较年初新增'],
       ['-', '达标机构数'],
-      ['-', '高渗透覆盖率'],
+      ['-', '高渗透覆盖率 / 较年初新增'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     dashboardRankList.innerHTML = '<div class="empty-state">上传 Excel/CSV 或生成模拟数据</div>';
