@@ -631,7 +631,7 @@ textarea:focus {
 
 .rank-table-inner {
   --rank-marker-col: 50px;
-  --rank-title-col: 142px;
+  --rank-title-col: 112px;
   --rank-col-gap: 10px;
   display: grid;
   gap: var(--rank-col-gap);
@@ -717,11 +717,12 @@ textarea:focus {
 .rank-marker {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 5;
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 26px;
+  min-height: 26px;
   border-radius: 7px;
   background: var(--soft);
   color: var(--muted);
@@ -742,12 +743,12 @@ textarea:focus {
 .rank-title {
   position: sticky;
   left: calc(var(--rank-marker-col) + var(--rank-col-gap));
-  z-index: 3;
+  z-index: 5;
   align-self: stretch;
   display: flex;
   align-items: center;
   background: #fff;
-  box-shadow: 8px 0 10px -10px rgba(15, 23, 42, 0.42);
+  box-shadow: calc(var(--rank-col-gap) * -1) 0 0 #fff, 8px 0 10px -10px rgba(15, 23, 42, 0.42);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -757,7 +758,10 @@ textarea:focus {
 .rank-header > span:nth-child(1),
 .rank-header > span:nth-child(2) {
   position: sticky;
-  z-index: 4;
+  z-index: 6;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
   background: #fff;
 }
 
@@ -767,10 +771,12 @@ textarea:focus {
 
 .rank-header > span:nth-child(2) {
   left: calc(var(--rank-marker-col) + var(--rank-col-gap));
-  box-shadow: 8px 0 10px -10px rgba(15, 23, 42, 0.42);
+  box-shadow: calc(var(--rank-col-gap) * -1) 0 0 #fff, 8px 0 10px -10px rgba(15, 23, 42, 0.42);
 }
 
 .rank-track {
+  position: relative;
+  z-index: 1;
   height: 10px;
   overflow: hidden;
   border-radius: 999px;
