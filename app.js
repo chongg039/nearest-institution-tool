@@ -92,6 +92,7 @@ let dashboardState = {
   overviewDetailScope: '',
   rankExpanded: false,
   source: '',
+  metricLabels: {},
 };
 
 const metricDefinitions = [
@@ -1269,7 +1270,13 @@ function detectMetricColumns(labels, ignoredIndexes = [], defaultWeek = '本周'
         }
       });
   });
-  return [...bestByMetricPeriod.values()].map(({ metric, index, phase, period }) => ({ metric, index, phase, period }));
+  return [...bestByMetricPeriod.values()].map(({ metric, index, phase, period }) => ({
+    metric,
+    index,
+    phase,
+    period,
+    label: labels[index],
+  }));
 }
 
 function parsePeriodLabel(value) {
@@ -1482,6 +1489,12 @@ function parseDashboardCsv(csvText, source = '上传文件', options = {}) {
   if (!metricColumns.length) throw new Error('指标文件没有可识别的指标列');
 
   let activeRegion = '';
+  const metricLabels = {};
+  metricColumns.forEach(({ metric, label, period }) => {
+    if (!label) return;
+    if (!metricLabels[metric.id] || period !== '年初') metricLabels[metric.id] = label;
+  });
+
   const parsedRows = rows.slice(dataStartIndex).flatMap((row) => {
     if (regionIndex >= 0) {
       const regionValue = String(row[regionIndex] || '').trim();
@@ -1511,6 +1524,7 @@ function parseDashboardCsv(csvText, source = '上传文件', options = {}) {
     years: [...new Set(parsedRows.map((row) => row.year))].sort(),
     weeks: sortWeeks([...new Set(parsedRows.map((row) => row.week))]),
     source,
+    metricLabels,
   };
 }
 
@@ -1577,11 +1591,18 @@ function parseDashboardTables(tables, fileName = '') {
       : regionMap.get(row.institution) || row.region || '未标区域',
   }));
   if (!rows.length) throw new Error(errors[0] || '指标文件没有有效机构数据');
+  const metricLabels = {};
+  parsedParts.forEach((part) => {
+    Object.entries(part.metricLabels || {}).forEach(([id, label]) => {
+      if (!metricLabels[id] || !part.weeks?.every((week) => week === '年初')) metricLabels[id] = label;
+    });
+  });
   return {
     rows,
     years: [...new Set(rows.map((row) => row.year))].sort(),
     weeks: sortWeeks([...new Set(rows.map((row) => row.week))]),
     source: dashboardDataSourceName(rows, parsedParts.length),
+    metricLabels,
   };
 }
 
@@ -1619,8 +1640,24 @@ function generateDashboardSample() {
   return { rows, years: [sampleYear], weeks, source: '模拟数据：2026年 / 8周 / 10机构' };
 }
 
+function metricDefinitionById(metricId) {
+  return metricDefinitions.find((metric) => metric.id === metricId);
+}
+
+function displayMetric(metric) {
+  if (!metric) return metric;
+  const label = dashboardState.metricLabels?.[metric.id];
+  return label ? { ...metric, label } : metric;
+}
+
+function metricDisplayLabel(metricId, fallbackLabel = '') {
+  return dashboardState.metricLabels?.[metricId] || fallbackLabel;
+}
+
 function availableMetrics(rows) {
-  return metricDefinitions.filter((metric) => rows.some((row) => row.metrics[metric.id] != null));
+  return metricDefinitions
+    .filter((metric) => rows.some((row) => row.metrics[metric.id] != null))
+    .map(displayMetric);
 }
 
 function allRowsForYear(year = dashboardState.selectedYear) {
@@ -1714,7 +1751,7 @@ function institutionNames() {
 }
 
 function metricById(metricId) {
-  return metricDefinitions.find((metric) => metric.id === metricId);
+  return displayMetric(metricDefinitionById(metricId));
 }
 
 function weakMetricsBelowRegionAverage(row, week) {
@@ -2008,9 +2045,10 @@ function renderDashboardRanking() {
   const gridStyle = `--rank-metric-cols:${metricColumns};`;
   const metricHeaderHtml = selectedMetrics.map((selectedMetric) => {
     const relatedCount = rankingMetricCountMap[selectedMetric.id];
+    const relatedCountLabel = relatedCount ? metricDisplayLabel(relatedCount.metricId, relatedCount.label) : '';
     return `
       <span>${escapeHtml(selectedMetric.label)}</span>
-      ${relatedCount ? `<span>${escapeHtml(relatedCount.label)}</span>` : ''}
+      ${relatedCount ? `<span>${escapeHtml(relatedCountLabel)}</span>` : ''}
     `;
   }).join('');
   const metricCellsHtml = (row) => row.metrics.map((item) => `
@@ -2948,6 +2986,7 @@ function loadDashboardData(dataset) {
     heatmapSort: dashboardState.heatmapSort || 'customers',
     rankExpanded: false,
     source: dataset.source,
+    metricLabels: dataset.metricLabels || {},
   };
   renderDashboard();
 }
