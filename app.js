@@ -92,7 +92,7 @@ let dashboardState = {
 };
 
 const metricDefinitions = [
-  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标', '年初覆盖率'], kind: 'rate', target: 0.65 },
+  { id: 'coverage', label: '综合业务覆盖率', aliases: ['综合业务覆盖率', '综合覆盖渗透率', '综合业务指标', '年初覆盖率', '年初综合覆盖率'], kind: 'rate', target: 0.65 },
   { id: 'bill', label: '电票覆盖率', aliases: ['电票业务穿透率', '电票业务渗透率', '电票覆盖率', '电票结算覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'acquiring', label: '收单业务覆盖率', aliases: ['收单业务覆盖率', '收单业务渗透率', '收单覆盖率'], kind: 'rate', target: 0.55 },
   { id: 'payroll', label: '代发工资业务覆盖率', aliases: ['代发工资业务覆盖率', '代发工资业务渗透率', '代发覆盖率'], kind: 'rate', target: 0.5 },
@@ -102,7 +102,7 @@ const metricDefinitions = [
   { id: 'loan', label: '对公贷款业务', aliases: ['对公贷款业务', '对公贷款业务覆盖率', '对公贷款渗透率'], kind: 'rate', target: 0.4 },
   { id: 'contribution', label: '存款有效率', aliases: ['综合业务备款贡献度', '综合业务备款贡献率', '综合业务存款贡献度', '存款有效率'], kind: 'rate', target: 0.45 },
   { id: 'interest', label: '综合付息率', aliases: ['综合付息率'], kind: 'inverseRate', target: 0.018 },
-  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数', '客户数', '计数项:客户编号'], kind: 'count', target: 50 },
+  { id: 'keyCustomers', label: '重点客群数', aliases: ['重点客群数', '重点客群', '重点客群客户数', '客户数', '客户编号', '计数项:客户编号'], kind: 'count', target: 50 },
   { id: 'loanCustomers', label: '贷款户数量', aliases: ['贷款户数量', '贷款户数', '重点客群贷款余额>0户数', '贷款余额>0户数'], kind: 'count', target: 50 },
   { id: 'loanDepositRatio', label: '存贷比', aliases: ['存贷比', '重点客群贷款户存款年日均余额/重点客群贷款余额×100%'], kind: 'ratio', target: 1 },
 ];
