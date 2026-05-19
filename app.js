@@ -1389,6 +1389,12 @@ function valueForScore(value, metric) {
 
 function institutionBarScale(value, metric) {
   if (value == null || !Number.isFinite(value)) return { score: 0, label: '0-100%' };
+  if (metric.id === 'loanCustomers') {
+    return {
+      score: Math.max(0, Math.min(1, value / 200)),
+      label: '0-200',
+    };
+  }
   if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || value < 0.1)) {
     return {
       score: Math.max(0, Math.min(1, value / 0.1)),
@@ -2311,8 +2317,8 @@ function createInstitutionReport(institution) {
     .map((metric) => {
       const value = row.metrics[metric.id];
       const regionAverage = metricAverageForRegionWeek(week, row.region, metric.id);
-      const score = valueForScore(value, metric) ?? 0;
-      const averageScore = valueForScore(regionAverage, metric);
+      const score = institutionBarScale(value, metric).score;
+      const averageScore = regionAverage == null ? null : institutionBarScale(regionAverage, metric).score;
       const gap = value != null && regionAverage != null
         ? (metric.kind === 'inverseRate' ? regionAverage - value : value - regionAverage)
         : null;
