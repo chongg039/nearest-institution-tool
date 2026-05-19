@@ -1414,6 +1414,12 @@ function institutionBarScale(value, metric) {
       label: '0-200',
     };
   }
+  if (metric.id === 'bill') {
+    return {
+      score: Math.max(0, Math.min(1, value / 0.3)),
+      label: '0-30%',
+    };
+  }
   if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || value < 0.1)) {
     return {
       score: Math.max(0, Math.min(1, value / 0.1)),
