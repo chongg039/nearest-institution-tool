@@ -342,6 +342,19 @@ textarea:focus {
   padding: 12px;
 }
 
+.metrics div.is-clickable {
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.metrics div.is-clickable:hover,
+.metrics div.is-clickable:focus-visible {
+  border-color: rgba(15, 118, 110, 0.48);
+  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.1);
+  outline: 0;
+  transform: translateY(-1px);
+}
+
 .metrics strong {
   display: block;
   font-size: 19px;
@@ -467,6 +480,109 @@ textarea:focus {
   grid-template-columns: minmax(130px, 170px) minmax(160px, 210px) minmax(150px, 210px) minmax(0, 1fr);
   align-items: end;
   gap: 14px;
+}
+
+.overview-institution-list {
+  margin-top: 12px;
+}
+
+.overview-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+  background: var(--soft);
+  padding: 12px 14px;
+}
+
+.overview-list-head strong {
+  display: block;
+  font-size: 15px;
+}
+
+.overview-list-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.overview-list-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.overview-list-tabs button {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--muted);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.overview-list-tabs button.is-active {
+  border-color: var(--accent);
+  background: rgba(15, 118, 110, 0.1);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.overview-list-table {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+}
+
+.overview-institution-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(90px, 0.7fr) 96px 82px;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  border-top: 1px solid #eef0f3;
+  padding: 8px 12px;
+}
+
+.overview-institution-row:first-child {
+  border-top: 0;
+}
+
+.overview-institution-row.is-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 34px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.overview-institution-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-institution-row span {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-institution-row em,
+.overview-institution-row b {
+  font-style: normal;
+  text-align: right;
 }
 
 .compact-field {
@@ -1273,6 +1389,25 @@ textarea:focus {
 
   .dashboard-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-list-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .overview-list-tabs {
+    width: 100%;
+  }
+
+  .overview-list-tabs button {
+    flex: 1;
+  }
+
+  .overview-institution-row {
+    grid-template-columns: minmax(92px, 1fr) 74px 74px 58px;
+    gap: 8px;
+    padding: 8px 10px;
   }
 
   .dashboard-rank-row {

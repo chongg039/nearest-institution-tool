@@ -54,6 +54,7 @@ const heatmapRegionSelect = document.querySelector('#heatmapRegionSelect');
 const heatmapSortSelect = document.querySelector('#heatmapSortSelect');
 const dashboardSource = document.querySelector('#dashboardSource');
 const dashboardKpis = document.querySelector('#dashboardKpis');
+const overviewInstitutionList = document.querySelector('#overviewInstitutionList');
 const dashboardRankList = document.querySelector('#dashboardRankList');
 const combinedTrendChart = document.querySelector('#combinedTrendChart');
 const heatmap = document.querySelector('#heatmap');
@@ -86,6 +87,7 @@ let dashboardState = {
   selectedInstitutionMetricId: 'coverage',
   heatmapMetricScope: 'core',
   heatmapSort: 'customers',
+  overviewDetailScope: '',
   rankExpanded: false,
   source: '',
 };
@@ -1710,6 +1712,24 @@ function filterRowsByScope(rows, scope) {
   return rows;
 }
 
+function overviewDetailRows(scope) {
+  const coverageMetric = metricById('coverage');
+  const rows = filterRowsByScope(overviewRowsForWeek(dashboardState.selectedWeek), scope)
+    .filter((row) => row.metrics.coverage != null);
+  return [...rows].sort((a, b) => {
+    if (scope === 'unreached') {
+      return a.metrics.coverage - b.metrics.coverage || a.institution.localeCompare(b.institution, 'zh-CN');
+    }
+    return b.metrics.coverage - a.metrics.coverage || a.institution.localeCompare(b.institution, 'zh-CN');
+  }).map((row) => ({
+    institution: row.institution,
+    region: row.region || '未标区域',
+    coverage: row.metrics.coverage,
+    keyCustomers: row.metrics.keyCustomers,
+    reached: row.metrics.coverage >= coverageMetric.target,
+  }));
+}
+
 function selectableTrendMetrics() {
   const yearRows = rowsForYear();
   return availableMetrics(yearRows);
@@ -1825,6 +1845,7 @@ function ensureDashboardSelections() {
 function renderDashboardKpis() {
   const week = dashboardState.selectedWeek;
   const baseWeek = yearStartWeek();
+  const scopedRows = overviewRowsForWeek(week);
   const latestRows = filterRowsByScope(overviewRowsForWeek(week), dashboardState.overviewScope);
   const baseRows = baseWeek ? filterRowsByScope(overviewRowsForWeek(baseWeek), dashboardState.overviewScope) : [];
   const coverageMetric = metricDefinitions.find((metric) => metric.id === 'coverage');
@@ -1840,8 +1861,9 @@ function renderDashboardKpis() {
   const highPenetration = weightedHighPenetration(latestRows);
   const baseHighPenetration = baseRows.length ? weightedHighPenetration(baseRows) : null;
   const highPenetrationDelta = highPenetration != null && baseHighPenetration != null ? highPenetration - baseHighPenetration : null;
-  const eligibleRows = latestRows.filter((row) => row.metrics.coverage != null);
+  const eligibleRows = scopedRows.filter((row) => row.metrics.coverage != null);
   const reached = eligibleRows.filter((row) => row.metrics.coverage >= coverageMetric.target).length;
+  const unreached = Math.max(0, eligibleRows.length - reached);
   const metricWeakness = availableMetrics(latestRows).map((metric) => ({
     metric,
     score: average(latestRows.map((row) => valueForScore(row.metrics[metric.id], metric))),
@@ -1850,10 +1872,54 @@ function renderDashboardKpis() {
   dashboardKpis.innerHTML = [
     [hasKeyCustomers ? `${formatDashboardValue(keyCustomers, keyCustomersMetric)} / ${formatDelta(keyCustomersDelta, keyCustomersMetric)}` : '-', '重点客群数量 / 较年初新增数'],
     [`${formatDashboardValue(coverage, coverageMetric)} / ${formatDelta(coverageDelta, coverageMetric)}`, '综合业务覆盖率 / 较年初新增'],
-    [`${reached}/${eligibleRows.length || 0}`, '达标机构数'],
+    [`${reached}/${eligibleRows.length || 0}`, `达标机构数 / 未达标 ${unreached}`, 'reached'],
     [`${formatDashboardValue(highPenetration, highPenetrationMetric)} / ${formatDelta(highPenetrationDelta, highPenetrationMetric)}`, `${highPenetrationMetric.label} / 较年初新增`],
     [metricWeakness?.metric.label || '-', '最低短板指标'],
-  ].map(([value, label]) => `<div><strong>${escapeHtml(String(value))}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+  ].map(([value, label, detailScope]) => `
+    <div${detailScope ? ` class="is-clickable" role="button" tabindex="0" data-overview-detail="${detailScope}" aria-expanded="${dashboardState.overviewDetailScope ? 'true' : 'false'}"` : ''}>
+      <strong>${escapeHtml(String(value))}</strong>
+      <span>${escapeHtml(label)}</span>
+    </div>
+  `).join('');
+  renderOverviewInstitutionList();
+}
+
+function renderOverviewInstitutionList() {
+  if (!dashboardState.overviewDetailScope || !overviewInstitutionList) {
+    overviewInstitutionList.innerHTML = '';
+    return;
+  }
+  const scope = dashboardState.overviewDetailScope;
+  const coverageMetric = metricById('coverage');
+  const keyCustomersMetric = metricById('keyCustomers');
+  const rows = overviewDetailRows(scope);
+  const scopeLabel = scope === 'unreached' ? '未达标机构' : '达标机构';
+  const list = rows.map((row) => `
+    <div class="overview-institution-row">
+      <strong title="${escapeHtml(row.institution)}">${escapeHtml(row.institution)}</strong>
+      <span>${escapeHtml(row.region)}</span>
+      <em>${escapeHtml(formatDashboardValue(row.coverage, coverageMetric))}</em>
+      <b>${escapeHtml(formatDashboardValue(row.keyCustomers, keyCustomersMetric))}</b>
+    </div>
+  `).join('');
+  overviewInstitutionList.innerHTML = `
+    <div class="overview-list-head">
+      <div>
+        <strong>${escapeHtml(scopeLabel)}</strong>
+        <span>${escapeHtml(dashboardState.selectedWeek)}，达标线 ${escapeHtml(formatDashboardValue(coverageMetric.target, coverageMetric))}</span>
+      </div>
+      <div class="overview-list-tabs">
+        <button type="button" class="${scope === 'reached' ? 'is-active' : ''}" data-overview-detail="reached">达标机构</button>
+        <button type="button" class="${scope === 'unreached' ? 'is-active' : ''}" data-overview-detail="unreached">未达标机构</button>
+      </div>
+    </div>
+    <div class="overview-list-table">
+      <div class="overview-institution-row is-header">
+        <span>机构</span><span>区域</span><span>综合覆盖率</span><span>重点客群</span>
+      </div>
+      ${list || '<div class="empty-state">暂无机构</div>'}
+    </div>
+  `;
 }
 
 function renderDashboardRanking() {
@@ -2722,6 +2788,7 @@ function renderDashboard() {
       ['-', '高渗透覆盖率 / 较年初新增'],
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
+    overviewInstitutionList.innerHTML = '';
     dashboardRankList.innerHTML = '<div class="empty-state">上传 Excel/CSV 或生成模拟数据</div>';
     combinedTrendChart.innerHTML = '<div class="empty-state">暂无周度趋势数据</div>';
     institutionKpis.innerHTML = [
@@ -2885,6 +2952,32 @@ overviewRegionSelect?.addEventListener('change', () => {
 
 overviewScopeSelect.addEventListener('change', () => {
   dashboardState.overviewScope = overviewScopeSelect.value;
+  renderDashboardKpis();
+});
+
+function setOverviewDetailScope(scope) {
+  dashboardState.overviewDetailScope = dashboardState.overviewDetailScope === scope ? '' : scope;
+  renderDashboardKpis();
+}
+
+dashboardKpis.addEventListener('click', (event) => {
+  const trigger = event.target.closest('[data-overview-detail]');
+  if (!trigger) return;
+  setOverviewDetailScope(trigger.dataset.overviewDetail);
+});
+
+dashboardKpis.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const trigger = event.target.closest('[data-overview-detail]');
+  if (!trigger) return;
+  event.preventDefault();
+  setOverviewDetailScope(trigger.dataset.overviewDetail);
+});
+
+overviewInstitutionList.addEventListener('click', (event) => {
+  const trigger = event.target.closest('[data-overview-detail]');
+  if (!trigger) return;
+  dashboardState.overviewDetailScope = trigger.dataset.overviewDetail;
   renderDashboardKpis();
 });
 
