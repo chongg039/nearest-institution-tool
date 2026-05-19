@@ -170,6 +170,11 @@ function showToast(message, type = 'info') {
   toastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 3600);
 }
 
+function syncStaticLabels() {
+  const coreScopeOption = heatmapMetricScopeSelect?.querySelector('option[value="core"]');
+  if (coreScopeOption) coreScopeOption.textContent = '综合业务';
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll('&', '&amp;')
@@ -3043,6 +3048,7 @@ queryForm.addEventListener('submit', async (event) => {
 setMetrics();
 resetResolvedView();
 resetSubsidyView();
+syncStaticLabels();
 renderDashboard();
 
 if (window.desktopRuntime?.isDesktop) {
