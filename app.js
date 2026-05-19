@@ -120,8 +120,8 @@ const internalMetricDefinitions = [
 const allMetricDefinitions = [...metricDefinitions, ...internalMetricDefinitions];
 const combinedTrendMetricIds = ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll'];
 const heatmapMetricGroups = {
-  core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'settlement', 'loan', 'contribution', 'loanCustomers', 'loanDepositRatio'],
-  contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
+  core: ['coverage', 'highPenetration', 'bill', 'acquiring', 'payroll', 'stateBusiness'],
+  contribution: ['settlement', 'contribution', 'loanCustomers', 'loanDepositRatio'],
 };
 const rankingMetricCountMap = {
   coverage: { metricId: '_coverageCount', label: '综合覆盖户数' },
