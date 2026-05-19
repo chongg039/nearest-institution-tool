@@ -112,10 +112,10 @@ const metricDefinitions = [
 
 const internalMetricDefinitions = [
   { id: '_coverageCount', aliases: ['综合业务覆盖', '综合覆盖户数', '综合业务覆盖户数', '综合业务覆盖客户数', '求和项:综合业务覆盖'], kind: 'count' },
-  { id: '_billCount', aliases: ['电票结算覆盖', '电票覆盖', '电票覆盖户数', '电票结算覆盖户数', '电票覆盖客户数'], kind: 'count' },
-  { id: '_acquiringCount', aliases: ['收单结算覆盖', '收单覆盖', '收单覆盖户数', '收单结算覆盖户数', '收单覆盖客户数'], kind: 'count' },
-  { id: '_payrollCount', aliases: ['代发覆盖', '代发覆盖户数', '代发工资覆盖户数', '代发覆盖客户数'], kind: 'count' },
-  { id: '_stateBusinessCount', aliases: ['国业覆盖', '国业覆盖户数', '国业覆盖客户数'], kind: 'count' },
+  { id: '_billCount', aliases: ['电票结算覆盖', '电票覆盖', '电票户数', '电票结算户数', '电票覆盖户数', '电票结算覆盖户数', '电票覆盖客户数'], kind: 'count' },
+  { id: '_acquiringCount', aliases: ['收单结算覆盖', '收单覆盖', '收单户数', '收单结算户数', '收单覆盖户数', '收单结算覆盖户数', '收单覆盖客户数'], kind: 'count' },
+  { id: '_payrollCount', aliases: ['代发覆盖', '代发户数', '代发覆盖户数', '代发工资户数', '代发工资覆盖户数', '代发覆盖客户数'], kind: 'count' },
+  { id: '_stateBusinessCount', aliases: ['国业覆盖', '国业户数', '国业覆盖户数', '国业覆盖客户数'], kind: 'count' },
   { id: '_settlementCount', aliases: ['结算活跃', '结算活跃户数', '结算活跃客户数', '对公结算业务', '对公结算业务户数'], kind: 'count' },
   { id: '_depositCount', aliases: ['存款有效', '存款有效户数', '存款有效客户数', '对公存款覆盖', '对公存款覆盖户数'], kind: 'count' },
   { id: '_highPenetrationCount', aliases: ['高渗透覆盖', '高渗透户数', '高渗透客户数', '高渗透客户户数', '高渗透客户数量', '高渗透覆盖户数', '高渗透覆盖客户数', '求和项:高渗透覆盖'], kind: 'count' },
