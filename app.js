@@ -62,7 +62,6 @@ const heatmapHint = document.querySelector('#heatmapHint');
 const institutionHint = document.querySelector('#institutionHint');
 const institutionKpis = document.querySelector('#institutionKpis');
 const institutionBars = document.querySelector('#institutionBars');
-const institutionTrendChart = document.querySelector('#institutionTrendChart');
 
 const CITY = '成都';
 const CONCURRENCY = 2;
@@ -123,6 +122,17 @@ const combinedTrendMetricIds = ['coverage', 'bill', 'acquiring', 'payroll', 'sta
 const heatmapMetricGroups = {
   core: ['coverage', 'bill', 'acquiring', 'payroll', 'stateBusiness', 'highPenetration'],
   contribution: ['settlement', 'loan', 'contribution', 'interest', 'loanCustomers', 'loanDepositRatio'],
+};
+const rankingMetricCountMap = {
+  coverage: { metricId: '_coverageCount', label: '综合覆盖户数' },
+  bill: { metricId: '_billCount', label: '电票覆盖户数' },
+  acquiring: { metricId: '_acquiringCount', label: '收单覆盖户数' },
+  payroll: { metricId: '_payrollCount', label: '代发覆盖户数' },
+  stateBusiness: { metricId: '_stateBusinessCount', label: '国业覆盖户数' },
+  highPenetration: { metricId: '_highPenetrationCount', label: '高渗透户数' },
+  settlement: { metricId: '_settlementCount', label: '结算活跃户数' },
+  loan: { metricId: 'loanCustomers', label: '贷款户数' },
+  contribution: { metricId: '_depositCount', label: '存款有效户数' },
 };
 const institutionLowShareMetricIds = new Set(['acquiring', 'stateBusiness']);
 const SUBSIDY_MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -1700,6 +1710,15 @@ function selectableTrendMetrics() {
   return availableMetrics(yearRows);
 }
 
+function selectableRankingMetrics() {
+  const yearRows = rowsForYear();
+  return availableMetrics(yearRows).filter((metric) => (
+    metric.kind === 'rate'
+    && metric.label.includes('覆盖率')
+    && rankingMetricCountMap[metric.id]
+  ));
+}
+
 function ensureTrendMetricSelection() {
   const allowedIds = selectableTrendMetrics().map((metric) => metric.id);
   const selected = dashboardState.selectedTrendMetricIds.filter((id) => allowedIds.includes(id));
@@ -1715,6 +1734,7 @@ function heatmapMetricsForSelection(rows) {
 
 function renderDashboardControls() {
   const metrics = availableMetrics(rowsForYear());
+  const rankingMetrics = selectableRankingMetrics();
   const yearWeeks = weeksForYear();
   const regions = regionOptionsForYear();
   yearSelect.innerHTML = dashboardState.years.map((year) => (
@@ -1743,12 +1763,12 @@ function renderDashboardControls() {
     overviewRegionSelect.value = dashboardState.overviewRegion;
     overviewRegionSelect.disabled = regions.length <= 1;
   }
-  rankingMetricSelect.innerHTML = metrics.map((metric) => (
+  rankingMetricSelect.innerHTML = rankingMetrics.map((metric) => (
     `<option value="${metric.id}"${metric.id === dashboardState.selectedMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
   )).join('');
   yearSelect.disabled = dashboardState.years.length <= 1;
   weekSelect.disabled = yearWeeks.length <= 1;
-  rankingMetricSelect.disabled = metrics.length <= 1;
+  rankingMetricSelect.disabled = rankingMetrics.length <= 1;
   overviewScopeSelect.value = dashboardState.overviewScope;
   rankingScopeSelect.value = dashboardState.rankingScope;
   trendChartTypeSelect.value = dashboardState.trendChartType;
@@ -1786,10 +1806,11 @@ function ensureDashboardSelections() {
   if (!weekRows.some((row) => row.institution === dashboardState.selectedInstitution)) {
     dashboardState.selectedInstitution = weekRows[0]?.institution || institutionNames()[0] || '';
   }
-  const yearMetrics = availableMetrics(rowsForYear());
-  if (!yearMetrics.some((metric) => metric.id === dashboardState.selectedMetricId)) {
-    dashboardState.selectedMetricId = yearMetrics[0]?.id || 'coverage';
+  const rankingMetrics = selectableRankingMetrics();
+  if (!rankingMetrics.some((metric) => metric.id === dashboardState.selectedMetricId)) {
+    dashboardState.selectedMetricId = rankingMetrics[0]?.id || 'coverage';
   }
+  const yearMetrics = availableMetrics(rowsForYear());
   if (!yearMetrics.some((metric) => metric.id === dashboardState.selectedInstitutionMetricId)) {
     dashboardState.selectedInstitutionMetricId = yearMetrics[0]?.id || 'coverage';
   }
@@ -1831,7 +1852,9 @@ function renderDashboardKpis() {
 function renderDashboardRanking() {
   const metric = metricById(dashboardState.selectedMetricId)
     || metricDefinitions[0];
-  const keyCustomersMetric = metricById('keyCustomers');
+  const relatedCount = rankingMetricCountMap[metric.id];
+  const relatedCountMetric = metricById(relatedCount?.metricId) || { kind: 'count' };
+  const relatedCountLabel = relatedCount?.label || '相关户数';
   const week = dashboardState.selectedWeek;
   const baseWeek = yearStartWeek();
   const rows = filterRowsByScope(rowsForWeek(week), dashboardState.rankingScope).map((row) => {
@@ -1840,7 +1863,7 @@ function renderDashboardRanking() {
     return {
       institution: row.institution,
       value,
-      keyCustomers: row.metrics.keyCustomers ?? null,
+      relatedCount: relatedCount ? row.metrics[relatedCount.metricId] ?? null : null,
       delta: value != null && base != null ? value - base : null,
     };
   }).filter((row) => row.value != null).sort((a, b) => {
@@ -1866,7 +1889,7 @@ function renderDashboardRanking() {
         <span class="rank-title" title="${escapeHtml(row.institution)}">${escapeHtml(row.institution)}</span>
         <span class="rank-track"><span style="width:${width}%"></span></span>
         <strong>${escapeHtml(formatDashboardValue(row.value, metric))}</strong>
-        <span class="rank-key-customers">${escapeHtml(formatDashboardValue(row.keyCustomers, keyCustomersMetric))}</span>
+        <span class="rank-key-customers">${escapeHtml(formatDashboardValue(row.relatedCount, relatedCountMetric))}</span>
         <em>${escapeHtml(formatDelta(row.delta, metric))}</em>
       </div>
     `;
@@ -1890,7 +1913,7 @@ function renderDashboardRanking() {
     ${middleRows.length ? middleRows.map((row, index) => rankRowHtml(row, index + 6, `${index + 6}`)).join('') : '<div class="empty-state">暂无被折叠的中间机构</div>'}
   ` : '';
   dashboardRankList.innerHTML = [
-    '<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>重点客户</span><span>较年初新增</span></div>',
+    `<div class="rank-header"><span>排名</span><span>机构</span><span>表现</span><span>指标值</span><span>${escapeHtml(relatedCountLabel)}</span><span>较年初新增</span></div>`,
     renderSection('前五家', topRows, 0, 'is-top'),
     `<button class="rank-mini" type="button" data-rank-toggle="true" aria-expanded="${dashboardState.rankExpanded ? 'true' : 'false'}">
       <span class="rank-mini-bars">${miniBars}</span>
@@ -2615,15 +2638,10 @@ function renderSingleInstitution() {
   const keyCustomersMetric = metricById('keyCustomers');
   institutionHint.textContent = institution ? `单一机构 / ${week}` : '单一机构';
   const institutions = institutionNames();
-  const yearMetrics = availableMetrics(rowsForYear());
   institutionSelect.innerHTML = institutions.map((item) => (
     `<option value="${escapeHtml(item)}"${item === dashboardState.selectedInstitution ? ' selected' : ''}>${escapeHtml(item)}</option>`
   )).join('');
-  institutionMetricSelect.innerHTML = yearMetrics.map((metric) => (
-    `<option value="${metric.id}"${metric.id === dashboardState.selectedInstitutionMetricId ? ' selected' : ''}>${escapeHtml(metric.label)}</option>`
-  )).join('');
   institutionSelect.disabled = institutions.length <= 1;
-  institutionMetricSelect.disabled = yearMetrics.length <= 1;
   downloadInstitutionPdfButton.disabled = !row;
   downloadAllInstitutionPdfsButton.disabled = !rowsForWeek(week).length;
 
@@ -2635,7 +2653,6 @@ function renderSingleInstitution() {
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     institutionBars.innerHTML = '<div class="empty-state">暂无机构数据</div>';
-    institutionTrendChart.innerHTML = '<div class="empty-state">暂无机构趋势数据</div>';
     return;
   }
 
@@ -2687,16 +2704,6 @@ function renderSingleInstitution() {
       </div>
     `;
   }).join('') || '<div class="empty-state">暂无业务指标</div>';
-
-  const trendMetric = metricById(dashboardState.selectedInstitutionMetricId) || coverageMetric;
-  renderComboChart(institutionTrendChart, [{
-    metric: trendMetric,
-    title: `${institution} ${trendMetric.label}`,
-    values: weeksForYear().map((itemWeek) => ({
-      week: itemWeek,
-      value: institutionMetricForWeek(itemWeek, institution, trendMetric.id),
-    })),
-  }], '暂无机构趋势数据');
 }
 
 function renderDashboard() {
@@ -2717,7 +2724,6 @@ function renderDashboard() {
       ['-', '最低短板指标'],
     ].map(([value, label]) => `<div><strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span></div>`).join('');
     institutionBars.innerHTML = '<div class="empty-state">暂无机构数据</div>';
-    institutionTrendChart.innerHTML = '<div class="empty-state">暂无机构趋势数据</div>';
     heatmap.innerHTML = '<div class="empty-state">暂无热力图数据</div>';
     dashboardSource.textContent = '未载入数据';
     yearSelect.innerHTML = '<option>暂无年份</option>';
@@ -2732,13 +2738,11 @@ function renderDashboard() {
     }
     rankingMetricSelect.innerHTML = '<option>暂无指标</option>';
     institutionSelect.innerHTML = '<option>暂无机构</option>';
-    institutionMetricSelect.innerHTML = '<option>暂无指标</option>';
     trendMetricPicker.innerHTML = '<div class="empty-state">暂无可选指标</div>';
     yearSelect.disabled = true;
     weekSelect.disabled = true;
     rankingMetricSelect.disabled = true;
     institutionSelect.disabled = true;
-    institutionMetricSelect.disabled = true;
     downloadInstitutionPdfButton.disabled = true;
     downloadAllInstitutionPdfsButton.disabled = true;
     return;
@@ -2898,7 +2902,7 @@ institutionSelect.addEventListener('change', () => {
   renderDashboard();
 });
 
-institutionMetricSelect.addEventListener('change', () => {
+institutionMetricSelect?.addEventListener('change', () => {
   dashboardState.selectedInstitutionMetricId = institutionMetricSelect.value;
   renderSingleInstitution();
 });
