@@ -634,7 +634,7 @@ textarea:focus {
   --rank-title-col: 112px;
   --rank-col-gap: 6px;
   display: grid;
-  gap: var(--rank-col-gap);
+  row-gap: 3px;
   width: max-content;
   min-width: 100%;
 }
@@ -644,16 +644,16 @@ textarea:focus {
   display: grid;
   grid-template-columns: var(--rank-marker-col) var(--rank-title-col) minmax(76px, 1fr) repeat(var(--rank-metric-cols, 2), minmax(68px, 86px));
   align-items: center;
-  gap: var(--rank-col-gap);
+  column-gap: var(--rank-col-gap);
 }
 
 .rank-header {
   color: var(--muted);
   font-size: 12px;
   font-weight: 650;
-  min-height: 28px;
+  min-height: 30px;
   border-bottom: 1px solid var(--line);
-  padding-bottom: 6px;
+  padding-bottom: 4px;
 }
 
 .rank-freeze-mask {
@@ -669,7 +669,7 @@ textarea:focus {
 
 .rank-section-title {
   grid-column: 1 / -1;
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
   font-weight: 700;
@@ -722,7 +722,7 @@ textarea:focus {
 }
 
 .dashboard-rank-row {
-  min-height: 36px;
+  min-height: 30px;
 }
 
 .rank-marker {
@@ -735,7 +735,7 @@ textarea:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 26px;
+  min-height: 22px;
   border-radius: 7px;
   background: var(--soft);
   color: var(--muted);
@@ -764,8 +764,10 @@ textarea:focus {
   align-items: center;
   background: transparent;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+  text-overflow: clip;
+  white-space: normal;
   font-weight: 650;
 }
 
@@ -802,6 +804,12 @@ textarea:focus {
   justify-self: end;
   width: 100%;
   text-align: right;
+}
+
+.rank-header > span:nth-child(n + 5) {
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+  white-space: normal;
 }
 
 .rank-track {
