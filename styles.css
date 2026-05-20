@@ -1542,3 +1542,229 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  html,
+  body {
+    width: auto;
+    min-height: 0;
+    background: #fff;
+  }
+
+  body {
+    color: #111827;
+    font-size: 11px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .view:not(.is-active),
+  .mode-switch,
+  .status-pill,
+  .file-action,
+  .compact-action,
+  .ghost-button,
+  .ghost-link,
+  .toast {
+    display: none !important;
+  }
+
+  .topbar {
+    display: block;
+    padding: 0 0 8px;
+    border-bottom: 1px solid #d1d5db;
+    background: #fff;
+  }
+
+  .topbar h1 {
+    font-size: 18px;
+  }
+
+  .topbar p {
+    margin-top: 3px;
+    font-size: 10px;
+  }
+
+  .dashboard-shell,
+  .subsidy-shell,
+  .key-panel {
+    width: 100%;
+    margin: 8px 0 0;
+    gap: 10px;
+  }
+
+  .panel {
+    break-inside: avoid;
+    box-shadow: none;
+    border-color: #d1d5db;
+    padding: 12px;
+  }
+
+  .panel h2 {
+    font-size: 15px;
+  }
+
+  .panel h3 {
+    margin: 10px 0 6px;
+  }
+
+  .panel-head,
+  .dashboard-actions,
+  .panel-tools {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .dashboard-toolbar,
+  .dashboard-grid,
+  .institution-layout,
+  .subsidy-form,
+  .requirement-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-kpis,
+  .institution-kpis,
+  .trend-summary,
+  .metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .metrics div {
+    min-height: 0;
+    padding: 8px;
+  }
+
+  .metrics strong {
+    font-size: 14px;
+  }
+
+  .metrics span,
+  .quiet-label,
+  .panel-note {
+    font-size: 10px;
+  }
+
+  .rank-table-scroll,
+  .heatmap-wrap,
+  .table-wrap {
+    max-width: none;
+    overflow: visible;
+    border-color: #d1d5db;
+  }
+
+  .rank-table-inner {
+    --rank-marker-col: 32px;
+    --rank-title-col: 84px;
+    --rank-col-gap: 4px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .rank-header,
+  .dashboard-rank-row {
+    grid-template-columns: var(--rank-marker-col) var(--rank-title-col) minmax(44px, 0.7fr) repeat(var(--rank-metric-cols, 2), minmax(46px, 0.55fr));
+  }
+
+  .rank-marker,
+  .rank-title,
+  .rank-head-marker,
+  .rank-head-title,
+  .rank-freeze-mask,
+  .heatmap-table thead th,
+  .heatmap-table tbody th {
+    position: static;
+  }
+
+  .rank-freeze-mask {
+    display: none;
+  }
+
+  .rank-title,
+  .rank-header > span:nth-child(n + 5) {
+    font-size: 10px;
+  }
+
+  .dashboard-rank-row strong,
+  .rank-key-customers {
+    font-size: 10px;
+  }
+
+  .rank-track,
+  .institution-scale-track {
+    height: 7px;
+  }
+
+  .rank-mini,
+  .rank-section-title {
+    break-inside: avoid;
+  }
+
+  .chart-card,
+  .compact-chart,
+  .combined-trend-chart,
+  .trend-svg,
+  .combo-svg,
+  .combined-trend-svg,
+  .radar-svg,
+  .rose-chart {
+    min-height: 0;
+  }
+
+  .trend-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 55vh;
+  }
+
+  .combo-chart,
+  .trend-heatmap,
+  .institution-layout,
+  .heatmap-wrap {
+    break-inside: avoid;
+  }
+
+  .combo-chart-head {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .trend-heatmap .heatmap-table,
+  .heatmap-table {
+    width: 100%;
+    min-width: 0;
+    font-size: 9px;
+  }
+
+  .heatmap-table th,
+  .heatmap-table td,
+  .preview-table th,
+  .preview-table td {
+    padding: 5px 6px;
+    white-space: normal;
+  }
+
+  .heat-cell {
+    min-width: 0;
+    padding: 4px 5px;
+  }
+
+  .institution-bars {
+    gap: 11px;
+  }
+
+  .institution-bar-row {
+    grid-template-columns: minmax(108px, 150px) minmax(120px, 1fr) 58px;
+    gap: 7px;
+  }
+
+  .institution-bar-row span {
+    white-space: normal;
+  }
+}
