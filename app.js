@@ -1417,35 +1417,60 @@ function valueForScore(value, metric) {
   return Math.max(0, Math.min(1, value));
 }
 
-function institutionBarScale(value, metric) {
-  if (value == null || !Number.isFinite(value)) return { score: 0, label: '0-100%' };
+function niceInstitutionScaleMax(value, metric) {
+  if (!Number.isFinite(value) || value <= 0) return 1;
+  if (metric.kind === 'count') {
+    const step = value <= 50 ? 5 : value <= 200 ? 10 : value <= 1000 ? 50 : 100;
+    return Math.max(step, Math.ceil(value / step) * step);
+  }
+  const percent = value * 100;
+  const step = percent <= 50 ? 5 : percent <= 200 ? 10 : 50;
+  return Math.max(step, Math.ceil(percent / step) * step) / 100;
+}
+
+function formatInstitutionScaleLabel(maxValue, metric) {
+  if (metric.kind === 'count') return `0-${Math.round(maxValue)}`;
+  return `0-${Math.round(maxValue * 100)}%`;
+}
+
+function defaultInstitutionScaleMax(metric, columnMax = 0) {
   if (metric.id === 'loanCustomers') {
-    return {
-      score: Math.max(0, Math.min(1, value / 200)),
-      label: '0-200',
-    };
+    return 200;
   }
   if (metric.id === 'bill') {
-    return {
-      score: Math.max(0, Math.min(1, value / 0.3)),
-      label: '0-30%',
-    };
+    return 0.3;
   }
   if (metric.id === 'payroll') {
-    return {
-      score: Math.max(0, Math.min(1, value / 0.4)),
-      label: '0-40%',
-    };
+    return 0.4;
   }
-  if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || value < 0.1)) {
-    return {
-      score: Math.max(0, Math.min(1, value / 0.1)),
-      label: '0-10%',
-    };
+  if (metric.id === 'loanDepositRatio') {
+    return 2;
   }
+  if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || columnMax < 0.1)) {
+    return 0.1;
+  }
+  if (metric.kind === 'count') return metric.target || Math.max(1, columnMax);
+  return 1;
+}
+
+function institutionMetricScale(metric, week = dashboardState.selectedWeek) {
+  const columnValues = rowsForWeek(week)
+    .map((row) => row.metrics[metric.id])
+    .filter((value) => value != null && Number.isFinite(value));
+  const columnMax = columnValues.length ? Math.max(...columnValues) : 0;
+  const maxValue = niceInstitutionScaleMax(Math.max(defaultInstitutionScaleMax(metric, columnMax), columnMax), metric);
   return {
-    score: valueForScore(value, metric) ?? 0,
-    label: metric.kind === 'count' ? `0-${metric.target}` : '0-100%',
+    maxValue,
+    label: formatInstitutionScaleLabel(maxValue, metric),
+  };
+}
+
+function institutionBarScale(value, metric, scale = null) {
+  const metricScale = scale || institutionMetricScale(metric);
+  if (value == null || !Number.isFinite(value)) return { score: 0, label: metricScale.label };
+  return {
+    score: Math.max(0, Math.min(1, value / Math.max(metricScale.maxValue, 0.01))),
+    label: metricScale.label,
   };
 }
 
@@ -2530,12 +2555,13 @@ function createInstitutionReport(institution) {
     .map((metric) => {
       const value = row.metrics[metric.id];
       const regionAverage = metricAverageForRegionWeek(week, row.region, metric.id);
-      const score = institutionBarScale(value, metric).score;
-      const averageScore = regionAverage == null ? null : institutionBarScale(regionAverage, metric).score;
+      const metricScale = institutionMetricScale(metric, week);
+      const score = institutionBarScale(value, metric, metricScale).score;
+      const averageScore = regionAverage == null ? null : institutionBarScale(regionAverage, metric, metricScale).score;
       const gap = value != null && regionAverage != null
         ? (metric.kind === 'inverseRate' ? regionAverage - value : value - regionAverage)
         : null;
-      return { metric, value, regionAverage, score, averageScore, gap };
+      return { metric, value, regionAverage, score, averageScore, gap, scaleLabel: metricScale.label };
     });
   return {
     institution,
@@ -2864,9 +2890,10 @@ function renderSingleInstitution() {
   const barMetrics = metricDefinitions
     .filter((metric) => metric.id !== 'keyCustomers' && row.metrics[metric.id] != null)
     .map((metric) => {
-      const scale = institutionBarScale(row.metrics[metric.id], metric);
+      const metricScale = institutionMetricScale(metric, week);
+      const scale = institutionBarScale(row.metrics[metric.id], metric, metricScale);
       const regionAverage = metricAverageForRegionWeek(week, row.region, metric.id);
-      const averageScale = institutionBarScale(regionAverage, metric);
+      const averageScale = institutionBarScale(regionAverage, metric, metricScale);
       return {
         metric,
         value: row.metrics[metric.id],
