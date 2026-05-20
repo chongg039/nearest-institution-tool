@@ -632,7 +632,7 @@ textarea:focus {
 .rank-table-inner {
   --rank-marker-col: 50px;
   --rank-title-col: 112px;
-  --rank-col-gap: 10px;
+  --rank-col-gap: 6px;
   display: grid;
   gap: var(--rank-col-gap);
   width: max-content;
@@ -642,7 +642,7 @@ textarea:focus {
 .rank-header,
 .dashboard-rank-row {
   display: grid;
-  grid-template-columns: var(--rank-marker-col) var(--rank-title-col) minmax(84px, 1fr) repeat(var(--rank-metric-cols, 2), minmax(74px, 94px));
+  grid-template-columns: var(--rank-marker-col) var(--rank-title-col) minmax(76px, 1fr) repeat(var(--rank-metric-cols, 2), minmax(68px, 86px));
   align-items: center;
   gap: var(--rank-col-gap);
 }
@@ -794,6 +794,14 @@ textarea:focus {
 .dashboard-rank-row > .rank-track {
   grid-column: 3;
   grid-row: 1;
+}
+
+.rank-header > span:nth-child(n + 5),
+.dashboard-rank-row > strong,
+.dashboard-rank-row > .rank-key-customers {
+  justify-self: end;
+  width: 100%;
+  text-align: right;
 }
 
 .rank-track {
