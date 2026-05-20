@@ -1431,6 +1431,12 @@ function institutionBarScale(value, metric) {
       label: '0-30%',
     };
   }
+  if (metric.id === 'payroll') {
+    return {
+      score: Math.max(0, Math.min(1, value / 0.4)),
+      label: '0-40%',
+    };
+  }
   if (metric.kind === 'rate' && (institutionLowShareMetricIds.has(metric.id) || value < 0.1)) {
     return {
       score: Math.max(0, Math.min(1, value / 0.1)),
